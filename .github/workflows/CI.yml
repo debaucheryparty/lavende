@@ -14,8 +14,8 @@ on:
   push:
     branches:
       - master
-    tags-ignore:
-      - '**'
+    tags:
+      - 'v*'
   pull_request:
 
 jobs:
