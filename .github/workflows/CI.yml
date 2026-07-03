@@ -1,0 +1,103 @@
+name: CI
+
+env:
+  DEBUG: napi-*
+  MACOSX_DEPLOYMENT_TARGET: '10.13'
+
+on:
+  push:
+    branches:
+      - master
+    tags-ignore:
+      - '**'
+  pull_request:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        settings:
+          - host: windows-latest
+            target: x86_64-pc-windows-msvc
+            architecture: x64
+            build: npm run build
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            architecture: x64
+            build: npm run build
+          - host: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            architecture: arm64
+            build: npm run build
+          - host: macos-latest
+            target: x86_64-apple-darwin
+            architecture: x64
+            build: npm run build
+          - host: macos-latest
+            target: aarch64-apple-darwin
+            architecture: arm64
+            build: npm run build
+
+    runs-on: ${{ matrix.settings.host }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: ${{ matrix.settings.target }}
+
+      - name: Install system dependencies (Ubuntu)
+        if: matrix.settings.host == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libopus-dev pkg-config cmake
+
+      - name: Install system dependencies (macOS)
+        if: matrix.settings.host == 'macos-latest'
+        run: |
+          brew install opus pkg-config cmake
+
+      - name: Install system dependencies (Windows)
+        if: matrix.settings.host == 'windows-latest'
+        shell: pwsh
+        run: |
+          choco install cmake --installargs 'ADD_CMAKE_TO_PATH=System' -y --force
+          $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine")
+          cmake --version
+          echo "CMAKE_GENERATOR=Visual Studio 17 2022" >> $env:GITHUB_ENV
+          echo "OPUS_BUILD_FROM_SOURCE=1" >> $env:GITHUB_ENV
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            rust/target/
+          key: ${{ matrix.settings.target }}-cargo-${{ hashFiles('rust/Cargo.toml') }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build native binary
+        run: ${{ matrix.settings.build }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bindings-${{ matrix.settings.target }}
+          path: |
+            *.node
+            index.js
+            index.d.ts

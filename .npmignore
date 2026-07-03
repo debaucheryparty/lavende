@@ -1,0 +1,51 @@
+# Source code (only publish compiled binaries)
+rust/
+!rust/Cargo.toml
+
+# Build artifacts
+target/
+rust/target/
+rust/target_cli/
+*.node
+!index.js
+!index.d.ts
+
+# Development files
+test_bot.js
+.env
+.env.*
+source.json
+
+# Documentation
+*.md
+!README.md
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# CI/CD
+.github/
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+yarn.lock
+
+# TypeScript
+tsconfig.json
+*.tsbuildinfo
+
+# Misc
+.DS_Store
+Thumbs.db
