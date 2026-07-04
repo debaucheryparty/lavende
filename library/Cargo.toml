@@ -1,22 +1,23 @@
 [package]
-name = "lavende"
+name = "lavende-core"
 version = "0.1.0"
 edition = "2024"
+description = "Core in-process Discord voice connection and playback engine"
+license = "Apache-2.0"
+repository = "https://github.com/debaucheryparty/lavende"
 
 [lib]
-crate-type = ["cdylib", "rlib"]
+crate-type = ["rlib"]
 
 [dependencies]
-napi = { version = "2.16", features = ["async", "napi4", "tokio_rt"] }
-napi-derive = "2.16"
 
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 toml = "1.0.2"
 
-symphonia = { version = "0.5.3", features = ["aac", "mp3", "ogg", "flac", "wav", "isomp4"] }
-audiopus = { git = "https://github.com/aikyaam/audiopus", branch = "master" }
-davey = { git = "https://github.com/Snazzah/davey", branch = "master" }
+symphonia = { version = "0.5.3", features = ["aac", "mp3", "ogg", "flac", "wav", "isomp4", "mkv"] }
+audiopus = "0.3.0-rc.0"
+davey = "0.1.4"
 
 xsalsa20poly1305 = "0.9.1"
 des = "0.8.1"
@@ -57,7 +58,6 @@ time = { version = "=0.3.36", features = ["formatting", "macros", "local-offset"
 tracing-log = "0.2"
 
 [build-dependencies]
-napi-build = "2.1"
 
 [profile.dev]
 codegen-units = 1

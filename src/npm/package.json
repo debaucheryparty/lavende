@@ -2,8 +2,8 @@
   "name": "lavende",
   "version": "0.1.0",
   "description": "In-process Discord voice connection and playback engine",
-  "main": "npm/index.js",
-  "types": "npm/index.d.ts",
+  "main": "index.js",
+  "types": "index.d.ts",
   "author": "Debauchery Party",
   "license": "Apache-2.0",
   "repository": {
@@ -29,7 +29,7 @@
   ],
   "napi": {
     "name": "lavende",
-    "cargoFilePath": "rust/Cargo.toml",
+    "cargoFilePath": "Cargo.toml",
     "triples": {
       "defaults": true,
       "additional": [
@@ -42,11 +42,11 @@
     }
   },
   "scripts": {
-    "build": "napi build --platform --release --cargo-cwd rust",
-    "build:debug": "napi build --platform --cargo-cwd rust",
-    "prepublishOnly": "napi prepublish -t npm --cargo-cwd rust",
+    "build": "napi build --platform --release",
+    "build:debug": "napi build --platform",
+    "prepublishOnly": "napi prepublish -t npm",
     "version": "napi version",
-    "artifacts": "napi artifacts --cargo-cwd rust"
+    "artifacts": "napi artifacts"
   },
   "engines": {
     "node": ">= 16"

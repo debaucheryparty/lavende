@@ -1,0 +1,10 @@
+[package]
+name = "lavende"
+version = "0.1.0"
+edition = "2024"
+description = "In-process Discord voice connection and playback engine"
+license = "Apache-2.0"
+repository = "https://github.com/debaucheryparty/lavende"
+
+[dependencies]
+lavende-core = { path = "../../library" }

@@ -1,13 +1,16 @@
-use napi::threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode};
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct EventSender {
-    ts_fn: ThreadsafeFunction<String>,
+    callback: Arc<dyn Fn(&str, serde_json::Value) + Send + Sync>,
 }
 
 impl EventSender {
-    pub fn new(ts_fn: ThreadsafeFunction<String>) -> Self {
-        Self { ts_fn }
+    pub fn new<F>(callback: F) -> Self
+    where
+        F: Fn(&str, serde_json::Value) + Send + Sync + 'static,
+    {
+        Self { callback: Arc::new(callback) }
     }
 
     pub fn send(&self, event_type: &str, payload: serde_json::Value) {
@@ -20,8 +23,6 @@ impl EventSender {
                 "data": payload
             });
         }
-        if let Ok(json_str) = serde_json::to_string(&full_payload) {
-            let _ = self.ts_fn.call(Ok(json_str), ThreadsafeFunctionCallMode::NonBlocking);
-        }
+        (self.callback)(event_type, full_payload);
     }
 }

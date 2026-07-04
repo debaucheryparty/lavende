@@ -98,13 +98,15 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            rust/target/
-          key: ${{ matrix.settings.target }}-cargo-${{ hashFiles('rust/Cargo.toml') }}
+            target/
+          key: ${{ matrix.settings.target }}-cargo-${{ hashFiles('library/Cargo.toml') }}
 
       - name: Install dependencies
+        working-directory: ./src/npm
         run: npm ci
 
       - name: Build native binary
+        working-directory: ./src/npm
         run: ${{ matrix.settings.build }}
 
       - name: Upload artifact
@@ -112,9 +114,9 @@ jobs:
         with:
           name: bindings-${{ matrix.settings.target }}
           path: |
-            *.node
-            index.js
-            index.d.ts
+            src/npm/*.node
+            src/npm/index.js
+            src/npm/index.d.ts
 
   release:
     name: Release
@@ -136,10 +138,11 @@ jobs:
           path: artifacts
 
       - name: Move artifacts
+        working-directory: ./src/npm
         run: |
-          for dir in artifacts/bindings-*; do
+          for dir in ../../artifacts/bindings-*; do
             if [ -d "$dir" ]; then
-              cp -v $dir/*.node . 2>/dev/null || true
+              cp -v $dir/src/npm/*.node . 2>/dev/null || true
             fi
           done
           ls -la *.node
@@ -151,15 +154,16 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            *.node
-            index.js
-            index.d.ts
+            src/npm/*.node
+            src/npm/index.js
+            src/npm/index.d.ts
           draft: false
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish to npm
+        working-directory: ./src/npm
         run: |
           npm config set //registry.npmjs.org/:_authToken=$NPM_TOKEN
           npm publish --ignore-scripts --access public --provenance

@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "library",
+    "src/cargo",
+    "src/npm"
+]
+resolver = "2"

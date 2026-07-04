@@ -1,7 +1,6 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use napi::threadsafe_function::ThreadsafeFunction;
-use napi_derive::napi;
+
 use serde_json::json;
 use tokio_util::sync::CancellationToken;
 use crate::events::EventSender;
@@ -204,27 +203,18 @@ define_filters! {
     spatial: SpatialFilter => "spatial",
     plugin_filters: std::collections::HashMap<String, serde_json::Value> => "pluginFilters",
 }
-#[napi]
 pub struct Player {
     pub guild_id: String,
-    #[napi(skip)]
     pub paused: Arc<AtomicBool>,
-    #[napi(skip)]
     pub volume: Arc<AtomicU32>,
-    #[napi(skip)]
     pub mixer: Shared<Mixer>,
-    #[napi(skip)]
     pub filter_chain: Shared<FilterChain>,
-    #[napi(skip)]
     pub voice_gateway_cancel: Arc<tokio::sync::Mutex<Option<CancellationToken>>>,
-    #[napi(skip)]
     pub track_handle: Arc<tokio::sync::Mutex<Option<TrackHandle>>>,
-    #[napi(skip)]
     pub event_sender: Arc<tokio::sync::Mutex<Option<EventSender>>>,
 }
-#[napi]
+
 impl Player {
-    #[napi(constructor)]
     pub fn new(guild_id: String) -> Self {
         Self {
             guild_id,
@@ -237,8 +227,7 @@ impl Player {
             event_sender: Arc::new(tokio::sync::Mutex::new(None)),
         }
     }
-    #[napi]
-    pub async fn play(
+    pub async fn play<F>(
         &self,
         user_id: String,
         channel_id: String,
@@ -246,9 +235,11 @@ impl Player {
         token: String,
         endpoint: String,
         url: String,
-        #[napi(ts_arg_type = "(err: null | Error, event: string) => void")]
-        callback: ThreadsafeFunction<String>,
-    ) -> napi::Result<()> {
+        callback: F,
+    ) -> Result<(), String>
+    where
+        F: Fn(&str, serde_json::Value) + Send + Sync + 'static,
+    {
         let events = EventSender::new(callback);
         {
             *self.event_sender.lock().await = Some(events.clone());
@@ -342,7 +333,6 @@ impl Player {
         });
         Ok(())
     }
-    #[napi]
     pub async fn pause(&self) {
         self.paused.store(true, Ordering::Release);
         if let Some(handle) = &*self.track_handle.lock().await {
@@ -353,7 +343,6 @@ impl Player {
             e.send("paused", json!({}));
         }
     }
-    #[napi]
     pub async fn resume(&self) {
         self.paused.store(false, Ordering::Release);
         if let Some(handle) = &*self.track_handle.lock().await {
@@ -364,7 +353,6 @@ impl Player {
             e.send("resumed", json!({}));
         }
     }
-    #[napi]
     pub async fn stop(&self) {
         {
             let mut cancel_guard = self.voice_gateway_cancel.lock().await;
@@ -378,13 +366,11 @@ impl Player {
         let mut mixer_guard = self.mixer.lock().await;
         mixer_guard.stop_all();
     }
-    #[napi]
     pub async fn seek(&self, position_ms: i64) {
         if let Some(handle) = &*self.track_handle.lock().await {
             handle.seek(position_ms.max(0) as u64);
         }
     }
-    #[napi]
     pub async fn set_volume(&self, volume: f64) {
         let vol_f = volume as f32;
         self.volume.store(vol_f.to_bits(), Ordering::Relaxed);
@@ -396,7 +382,6 @@ impl Player {
             e.send("volume", json!({ "volume": volume }));
         }
     }
-    #[napi]
     pub fn get_position(&self) -> i64 {
         let handle_guard = futures::executor::block_on(self.track_handle.lock());
         if let Some(handle) = &*handle_guard {
@@ -405,7 +390,6 @@ impl Player {
             0
         }
     }
-    #[napi]
     pub fn is_paused(&self) -> bool {
         let handle_guard = futures::executor::block_on(self.track_handle.lock());
         if let Some(handle) = &*handle_guard {
@@ -414,10 +398,9 @@ impl Player {
             self.paused.load(Ordering::Acquire)
         }
     }
-    #[napi]
-    pub async fn set_filters(&self, filters_json: String) -> napi::Result<()> {
+    pub async fn set_filters(&self, filters_json: String) -> Result<(), String> {
         let filters: Filters = serde_json::from_str(&filters_json)
-            .map_err(|e| napi::Error::from_reason(format!("Invalid filters JSON: {e}")))?;
+            .map_err(|e| format!("Invalid filters JSON: {e}"))?;
         let new_chain = FilterChain::from_config(&filters);
         {
             let mut filter_chain_guard = self.filter_chain.lock().await;

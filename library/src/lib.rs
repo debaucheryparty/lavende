@@ -54,19 +54,16 @@ pub fn get_source_manager() -> &'static SourceManager {
     })
 }
 
-#[napi_derive::napi]
-pub async fn resolve_jiosaavn(url_or_token: String) -> napi::Result<String> {
+pub async fn resolve_jiosaavn(url_or_token: String) -> Result<String, String> {
     Ok(url_or_token)
 }
 
-#[napi_derive::napi]
-pub async fn resolve_youtube(url_or_id: String) -> napi::Result<String> {
+pub async fn resolve_youtube(url_or_id: String) -> Result<String, String> {
     Ok(url_or_id)
 }
 
-#[napi_derive::napi]
-pub async fn load(identifier: String) -> napi::Result<String> {
+pub async fn load(identifier: String) -> Result<String, String> {
     let sm = get_source_manager();
     let res = sm.load(&identifier, None).await;
-    serde_json::to_string(&res).map_err(|e| napi::Error::from_reason(e.to_string()))
+    serde_json::to_string(&res).map_err(|e| e.to_string())
 }
