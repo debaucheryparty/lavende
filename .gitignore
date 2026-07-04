@@ -43,3 +43,8 @@ examples/
 
 # Misc
 *.log
+
+# Swift intermediate builds
+src/swift/build/
+src/swift/LavendeSwift/.build/
+src/swift/LavendeSwift/LavendeSwift.xcframework

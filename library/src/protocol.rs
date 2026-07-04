@@ -531,7 +531,7 @@ pub mod events {
         #[serde(rename = "cleanup")]
         Cleanup,
     }
-    #[derive(Debug, Clone, Serialize)]
+    #[derive(Debug, Clone, Serialize, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct TrackException {
         pub message: Option<String>,

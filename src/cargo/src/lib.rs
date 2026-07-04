@@ -14,7 +14,9 @@ pub use lavende_core::protocol::tracks::{
     LoadResult, PlaylistData, SearchResult, Track, TrackInfo,
 };
 
-#[derive(Debug, Clone)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum LavendeEvent {
     TrackStart {
         guild_id: String,
@@ -581,6 +583,9 @@ impl LavendePlayer {
     }
     pub async fn apply_filters(&self) {
         let json_str = self.filter_manager.read().await.to_json();
+        let _ = self.native_player.set_filters(json_str).await;
+    }
+    pub async fn set_filters(&self, json_str: String) {
         let _ = self.native_player.set_filters(json_str).await;
     }
     pub fn get_position(&self) -> i64 {
