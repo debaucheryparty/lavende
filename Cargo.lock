@@ -1374,7 +1374,7 @@ dependencies = [
 
 [[package]]
 name = "lavende"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-trait",
  "dashmap",
@@ -1389,7 +1389,7 @@ dependencies = [
 
 [[package]]
 name = "lavende-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "aes",
  "async-trait",
