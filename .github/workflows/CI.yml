@@ -155,10 +155,11 @@ jobs:
         run: |
           for dir in ../../artifacts/bindings-*; do
             if [ -d "$dir" ]; then
-              cp -v $dir/src/node/*.node . 2>/dev/null || true
+              cp -v "$dir"/*.node . 2>/dev/null || true
+              cp -v "$dir"/index.js . 2>/dev/null || true
             fi
           done
-          ls -la *.node
+          ls -la *.node || echo "No .node files found"
 
       - name: Build TypeScript
         working-directory: ./src/node
