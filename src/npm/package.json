@@ -44,7 +44,6 @@
   "scripts": {
     "build": "napi build --platform --release",
     "build:debug": "napi build --platform",
-    "prepublishOnly": "napi prepublish -t npm",
     "version": "napi version",
     "artifacts": "napi artifacts"
   },
@@ -55,12 +54,5 @@
     "@napi-rs/cli": "^2.18.4",
     "@types/node": "^26.0.1",
     "typescript": "^5.4.0"
-  },
-  "optionalDependencies": {
-    "lavende-darwin-x64": "0.1.0",
-    "lavende-darwin-arm64": "0.1.0",
-    "lavende-linux-x64-gnu": "0.1.0",
-    "lavende-linux-arm64-gnu": "0.1.0",
-    "lavende-win32-x64-msvc": "0.1.0"
   }
 }
