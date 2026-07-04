@@ -1,0 +1,17 @@
+[package]
+name = "lavende-python"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "lavende"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.22", features = ["extension-module", "abi3-py38"] }
+pyo3-async-runtimes = { version = "0.22", features = ["tokio-runtime"] }
+tokio = { version = "1.38", features = ["rt-multi-thread", "macros"] }
+lavende-core = { path = "../../library" }
+serde_json = "1.0"
+
+[build-dependencies]

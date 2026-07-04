@@ -3,6 +3,6 @@ members = [
     "library",
     "src/cargo",
     "src/node",
-    "src/swift"
+    "src/python"
 ]
 resolver = "2"
