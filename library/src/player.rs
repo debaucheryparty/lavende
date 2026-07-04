@@ -1,13 +1,18 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
+use crate::audio::{
+    Mixer,
+    filters::FilterChain,
+    playback::{PlaybackState, TrackHandle, handle::PlaybackState as PlayState},
+    processor::DecoderCommand,
+};
+use crate::common::types::{ChannelId, GuildId, SessionId, Shared, UserId};
+use crate::events::EventSender;
+use crate::gateway::{DaveHandler, VoiceEngine, VoiceGateway, VoiceGatewayConfig};
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio_util::sync::CancellationToken;
-use crate::events::EventSender;
-use crate::gateway::{VoiceGateway, VoiceGatewayConfig, DaveHandler, VoiceEngine};
-use crate::audio::{Mixer, filters::FilterChain, playback::{TrackHandle, PlaybackState, handle::PlaybackState as PlayState}, processor::DecoderCommand};
-use crate::common::types::{GuildId, SessionId, UserId, ChannelId, Shared};
-use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EqBand {
     pub band: u8,
@@ -221,7 +226,9 @@ impl Player {
             paused: Arc::new(AtomicBool::new(false)),
             volume: Arc::new(AtomicU32::new(1.0f32.to_bits())),
             mixer: Shared::new(tokio::sync::Mutex::new(Mixer::new(48000))),
-            filter_chain: Shared::new(tokio::sync::Mutex::new(FilterChain::from_config(&Filters::default()))),
+            filter_chain: Shared::new(tokio::sync::Mutex::new(FilterChain::from_config(
+                &Filters::default(),
+            ))),
             voice_gateway_cancel: Arc::new(tokio::sync::Mutex::new(None)),
             track_handle: Arc::new(tokio::sync::Mutex::new(None)),
             event_sender: Arc::new(tokio::sync::Mutex::new(None)),
@@ -274,7 +281,14 @@ impl Player {
                 TrackHandle::new(cmd_tx, Arc::new(AtomicBool::new(false)));
             {
                 let mut mixer_guard = mixer_clone.lock().await;
-                mixer_guard.add_track(frame_rx, audio_state, vol, pos, is_buffering, player_config.clone());
+                mixer_guard.add_track(
+                    frame_rx,
+                    audio_state,
+                    vol,
+                    pos,
+                    is_buffering,
+                    player_config.clone(),
+                );
             }
             {
                 let mut handle_guard = track_handle_lock.lock().await;
@@ -328,7 +342,10 @@ impl Player {
         let voice_gateway = VoiceGateway::new(gateway_config);
         tokio::spawn(async move {
             if let Err(e) = voice_gateway.run().await {
-                events.send("error", json!({ "message": format!("VoiceGateway error: {e}") }));
+                events.send(
+                    "error",
+                    json!({ "message": format!("VoiceGateway error: {e}") }),
+                );
             }
         });
         Ok(())

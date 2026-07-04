@@ -1,12 +1,12 @@
-use std::sync::Arc;
-use async_trait::async_trait;
-use regex::Regex;
-use tracing::debug;
 use crate::{
     config::sources::GoogleTtsConfig,
     protocol::tracks::{LoadResult, Track, TrackInfo},
     sources::{SourcePlugin, http::HttpTrack, playable_track::BoxedTrack},
 };
+use async_trait::async_trait;
+use regex::Regex;
+use std::sync::Arc;
+use tracing::debug;
 pub struct GoogleTtsSource {
     config: GoogleTtsConfig,
     search_prefixes: Vec<String>,
@@ -30,7 +30,7 @@ impl GoogleTtsSource {
             identifier: format!("gtts://{}:{}", language, text),
             is_seekable: true,
             author: "Google TTS".to_string(),
-            length: 0, 
+            length: 0,
             is_stream: false,
             position: 0,
             title: format!("TTS: {}", title_text),
@@ -104,7 +104,7 @@ impl SourcePlugin for GoogleTtsSource {
         Some(Arc::new(HttpTrack {
             url,
             local_addr: routeplanner.and_then(|rp| rp.get_address()),
-            proxy: None, 
+            proxy: None,
         }))
     }
     fn search_prefixes(&self) -> Vec<&str> {

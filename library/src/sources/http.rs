@@ -1,83 +1,88 @@
 pub mod reader {
-use std::io::{Read, Seek, SeekFrom};
-use symphonia::core::io::MediaSource;
-use crate::{
-    audio::source::{AudioSource, HttpSource, create_client},
-    common::types::AnyResult,
-};
-pub struct HttpReader {
-    inner: HttpSource,
-}
-impl HttpReader {
-    pub async fn new(
-        url: &str,
-        local_addr: Option<std::net::IpAddr>,
-        proxy: Option<crate::config::HttpProxyConfig>,
-    ) -> AnyResult<Self> {
-        let user_agent = crate::common::utils::default_user_agent();
-        let client = create_client(user_agent, local_addr, proxy, None)?;
-        let inner = HttpSource::new(client, url).await?;
-        Ok(Self { inner })
+    use crate::{
+        audio::source::{AudioSource, HttpSource, create_client},
+        common::types::AnyResult,
+    };
+    use std::io::{Read, Seek, SeekFrom};
+    use symphonia::core::io::MediaSource;
+    pub struct HttpReader {
+        inner: HttpSource,
     }
-}
-impl Read for HttpReader {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        self.inner.read(buf)
+    impl HttpReader {
+        pub async fn new(
+            url: &str,
+            local_addr: Option<std::net::IpAddr>,
+            proxy: Option<crate::config::HttpProxyConfig>,
+        ) -> AnyResult<Self> {
+            let user_agent = crate::common::utils::default_user_agent();
+            let client = create_client(user_agent, local_addr, proxy, None)?;
+            let inner = HttpSource::new(client, url).await?;
+            Ok(Self { inner })
+        }
     }
-}
-impl Seek for HttpReader {
-    fn seek(&mut self, pos: SeekFrom) -> std::io::Result<u64> {
-        self.inner.seek(pos)
+    impl Read for HttpReader {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            self.inner.read(buf)
+        }
     }
-}
-impl MediaSource for HttpReader {
-    fn is_seekable(&self) -> bool {
-        self.inner.is_seekable()
+    impl Seek for HttpReader {
+        fn seek(&mut self, pos: SeekFrom) -> std::io::Result<u64> {
+            self.inner.seek(pos)
+        }
     }
-    fn byte_len(&self) -> Option<u64> {
-        self.inner.byte_len()
+    impl MediaSource for HttpReader {
+        fn is_seekable(&self) -> bool {
+            self.inner.is_seekable()
+        }
+        fn byte_len(&self) -> Option<u64> {
+            self.inner.byte_len()
+        }
     }
-}
-impl HttpReader {
-    pub fn content_type(&self) -> Option<String> {
-        self.inner.content_type()
+    impl HttpReader {
+        pub fn content_type(&self) -> Option<String> {
+            self.inner.content_type()
+        }
     }
-}
 }
 pub mod track {
-use async_trait::async_trait;
-use crate::{
-    common::types::AudioFormat,
-    config::HttpProxyConfig,
-    sources::{
-        http::reader,
-        playable_track::{PlayableTrack, ResolvedTrack},
-    },
-};
-pub struct HttpTrack {
-    pub url: String,
-    pub local_addr: Option<std::net::IpAddr>,
-    pub proxy: Option<HttpProxyConfig>,
-}
-#[async_trait]
-impl PlayableTrack for HttpTrack {
-    async fn resolve(&self) -> Result<ResolvedTrack, String> {
-        let hint = std::path::Path::new(&self.url)
-            .extension()
-            .and_then(|s| s.to_str())
-            .map(AudioFormat::from_ext)
-            .filter(|f| *f != AudioFormat::Unknown);
-        let reader = reader::HttpReader::new(&self.url, self.local_addr, self.proxy.clone())
-            .await
-            .map(|r| Box::new(r) as Box<dyn symphonia::core::io::MediaSource>)
-            .map_err(|e| format!("Failed to open stream: {e}"))?;
-        Ok(ResolvedTrack::new(reader, hint))
+    use crate::{
+        common::types::AudioFormat,
+        config::HttpProxyConfig,
+        sources::{
+            http::reader,
+            playable_track::{PlayableTrack, ResolvedTrack},
+        },
+    };
+    use async_trait::async_trait;
+    pub struct HttpTrack {
+        pub url: String,
+        pub local_addr: Option<std::net::IpAddr>,
+        pub proxy: Option<HttpProxyConfig>,
+    }
+    #[async_trait]
+    impl PlayableTrack for HttpTrack {
+        async fn resolve(&self) -> Result<ResolvedTrack, String> {
+            let hint = std::path::Path::new(&self.url)
+                .extension()
+                .and_then(|s| s.to_str())
+                .map(AudioFormat::from_ext)
+                .filter(|f| *f != AudioFormat::Unknown);
+            let reader = reader::HttpReader::new(&self.url, self.local_addr, self.proxy.clone())
+                .await
+                .map(|r| Box::new(r) as Box<dyn symphonia::core::io::MediaSource>)
+                .map_err(|e| format!("Failed to open stream: {e}"))?;
+            Ok(ResolvedTrack::new(reader, hint))
+        }
     }
 }
-}
-use std::sync::{Arc, OnceLock};
+use crate::{
+    common::types::AnyResult,
+    protocol::tracks::{LoadResult, Track, TrackInfo},
+    sources::{SourcePlugin, playable_track::PlayableTrack},
+};
 use async_trait::async_trait;
 use regex::Regex;
+use std::sync::{Arc, OnceLock};
 use symphonia::core::{
     codecs::CODEC_TYPE_NULL,
     formats::FormatOptions,
@@ -87,11 +92,6 @@ use symphonia::core::{
 };
 use tracing::{debug, warn};
 pub use track::HttpTrack;
-use crate::{
-    common::types::AnyResult,
-    protocol::tracks::{LoadResult, Track, TrackInfo},
-    sources::{SourcePlugin, playable_track::PlayableTrack},
-};
 fn url_regex() -> &'static Regex {
     static REGEX: OnceLock<Regex> = OnceLock::new();
     REGEX.get_or_init(|| Regex::new(r"^(?:https?|icy)://").unwrap())

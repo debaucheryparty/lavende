@@ -1,481 +1,496 @@
 pub mod fetcher {
-use super::types::Resource;
-use crate::common::types::AnyResult;
-pub async fn fetch_segment_into(
-    client: &reqwest::Client,
-    resource: &Resource,
-    out: &mut Vec<u8>,
-) -> AnyResult<()> {
-    let mut req = client.get(&resource.url).header("Accept", "*/*");
-    if let Some(range) = &resource.range {
-        let end = range.offset + range.length - 1;
-        req = req.header("Range", format!("bytes={}-{}", range.offset, end));
+    use super::types::Resource;
+    use crate::common::types::AnyResult;
+    pub async fn fetch_segment_into(
+        client: &reqwest::Client,
+        resource: &Resource,
+        out: &mut Vec<u8>,
+    ) -> AnyResult<()> {
+        let mut req = client.get(&resource.url).header("Accept", "*/*");
+        if let Some(range) = &resource.range {
+            let end = range.offset + range.length - 1;
+            req = req.header("Range", format!("bytes={}-{}", range.offset, end));
+        }
+        let res = req.send().await?;
+        if !res.status().is_success() {
+            return Err(format!("HLS fetch failed {}: {}", res.status(), resource.url).into());
+        }
+        let bytes = res.bytes().await?;
+        out.extend_from_slice(&bytes);
+        Ok(())
     }
-    let res = req.send().await?;
-    if !res.status().is_success() {
-        return Err(format!("HLS fetch failed {}: {}", res.status(), resource.url).into());
-    }
-    let bytes = res.bytes().await?;
-    out.extend_from_slice(&bytes);
-    Ok(())
-}
 }
 pub mod parser {
-use std::collections::HashMap;
-use super::{
-    types::{ByteRange, M3u8Playlist, Media, Resource, Variant},
-    utils::{extract_attr_str, extract_attr_u64, parse_byte_range, resolve_url},
-};
-pub fn parse_m3u8(text: &str, base_url: &str) -> M3u8Playlist {
-    let lines: Vec<&str> = text.lines().map(str::trim).collect();
-    let is_master = lines.iter().any(|l| l.starts_with("#EXT-X-STREAM-INF"));
-    if is_master {
-        let mut variants = Vec::new();
-        let mut audio_groups: HashMap<String, Vec<Media>> = HashMap::new();
-        let mut i = 0;
-        while i < lines.len() {
-            let line = lines[i];
-            if line.starts_with("#EXT-X-MEDIA") {
-                let type_ = extract_attr_str(line, "TYPE").unwrap_or_default();
-                let group_id = extract_attr_str(line, "GROUP-ID").unwrap_or_default();
-                let uri = extract_attr_str(line, "URI").map(|u| resolve_url(base_url, &u));
-                let is_default = extract_attr_str(line, "DEFAULT").as_deref() == Some("YES");
-                if type_ == "AUDIO" && !group_id.is_empty() {
-                    audio_groups
-                        .entry(group_id.clone())
-                        .or_default()
-                        .push(Media {
-                            _type: type_,
-                            _group_id: group_id,
-                            uri,
-                            is_default,
+    use super::{
+        types::{ByteRange, M3u8Playlist, Media, Resource, Variant},
+        utils::{extract_attr_str, extract_attr_u64, parse_byte_range, resolve_url},
+    };
+    use std::collections::HashMap;
+    pub fn parse_m3u8(text: &str, base_url: &str) -> M3u8Playlist {
+        let lines: Vec<&str> = text.lines().map(str::trim).collect();
+        let is_master = lines.iter().any(|l| l.starts_with("#EXT-X-STREAM-INF"));
+        if is_master {
+            let mut variants = Vec::new();
+            let mut audio_groups: HashMap<String, Vec<Media>> = HashMap::new();
+            let mut i = 0;
+            while i < lines.len() {
+                let line = lines[i];
+                if line.starts_with("#EXT-X-MEDIA") {
+                    let type_ = extract_attr_str(line, "TYPE").unwrap_or_default();
+                    let group_id = extract_attr_str(line, "GROUP-ID").unwrap_or_default();
+                    let uri = extract_attr_str(line, "URI").map(|u| resolve_url(base_url, &u));
+                    let is_default = extract_attr_str(line, "DEFAULT").as_deref() == Some("YES");
+                    if type_ == "AUDIO" && !group_id.is_empty() {
+                        audio_groups
+                            .entry(group_id.clone())
+                            .or_default()
+                            .push(Media {
+                                _type: type_,
+                                _group_id: group_id,
+                                uri,
+                                is_default,
+                            });
+                    }
+                    i += 1;
+                } else if line.starts_with("#EXT-X-STREAM-INF") {
+                    let bandwidth = extract_attr_u64(line, "BANDWIDTH").unwrap_or(0);
+                    let codecs = extract_attr_str(line, "CODECS").unwrap_or_default();
+                    let audio_group = extract_attr_str(line, "AUDIO");
+                    let has_audio = codecs.contains("mp4a")
+                        || codecs.contains("opus")
+                        || codecs.contains("aac");
+                    let has_video = codecs.contains("avc1")
+                        || codecs.contains("hvc1")
+                        || codecs.contains("hev1")
+                        || codecs.contains("dvh1")
+                        || codecs.contains("vp09")
+                        || codecs.contains("av01")
+                        || codecs.contains("vp9")
+                        || codecs.contains("av1")
+                        || codecs.contains("vp8")
+                        || codecs.contains("h264")
+                        || codecs.contains("h265")
+                        || codecs.contains("mp4v");
+                    let mut j = i + 1;
+                    while j < lines.len() && lines[j].starts_with('#') {
+                        j += 1;
+                    }
+                    if j < lines.len() && !lines[j].is_empty() {
+                        variants.push(Variant {
+                            url: resolve_url(base_url, lines[j]),
+                            bandwidth,
+                            codecs: codecs.clone(),
+                            is_audio_only: has_audio && !has_video,
+                            audio_group,
                         });
+                    }
+                    i = j + 1;
+                } else {
+                    i += 1;
                 }
-                i += 1;
-            } else if line.starts_with("#EXT-X-STREAM-INF") {
-                let bandwidth = extract_attr_u64(line, "BANDWIDTH").unwrap_or(0);
-                let codecs = extract_attr_str(line, "CODECS").unwrap_or_default();
-                let audio_group = extract_attr_str(line, "AUDIO");
-                let has_audio =
-                    codecs.contains("mp4a") || codecs.contains("opus") || codecs.contains("aac");
-                let has_video = codecs.contains("avc1")
-                    || codecs.contains("hvc1")
-                    || codecs.contains("hev1")
-                    || codecs.contains("dvh1")
-                    || codecs.contains("vp09")
-                    || codecs.contains("av01")
-                    || codecs.contains("vp9")
-                    || codecs.contains("av1")
-                    || codecs.contains("vp8")
-                    || codecs.contains("h264")
-                    || codecs.contains("h265")
-                    || codecs.contains("mp4v");
-                let mut j = i + 1;
-                while j < lines.len() && lines[j].starts_with('#') {
-                    j += 1;
-                }
-                if j < lines.len() && !lines[j].is_empty() {
-                    variants.push(Variant {
-                        url: resolve_url(base_url, lines[j]),
-                        bandwidth,
-                        codecs: codecs.clone(),
-                        is_audio_only: has_audio && !has_video,
-                        audio_group,
+            }
+            return M3u8Playlist::Master {
+                variants,
+                audio_groups,
+            };
+        }
+        let mut segments = Vec::new();
+        let mut map = None;
+        let mut next_offset = 0u64;
+        let mut pending_range: Option<ByteRange> = None;
+        for i in 0..lines.len() {
+            let line = lines[i];
+            if line.starts_with("#EXT-X-MAP") {
+                if let Some(url) = extract_attr_str(line, "URI").map(|u| resolve_url(base_url, &u))
+                {
+                    let range =
+                        extract_attr_str(line, "BYTERANGE").map(|r| parse_byte_range(&r, 0));
+                    map = Some(Resource {
+                        url,
+                        range,
+                        duration: None,
                     });
                 }
-                i = j + 1;
-            } else {
-                i += 1;
-            }
-        }
-        return M3u8Playlist::Master {
-            variants,
-            audio_groups,
-        };
-    }
-    let mut segments = Vec::new();
-    let mut map = None;
-    let mut next_offset = 0u64;
-    let mut pending_range: Option<ByteRange> = None;
-    for i in 0..lines.len() {
-        let line = lines[i];
-        if line.starts_with("#EXT-X-MAP") {
-            if let Some(url) = extract_attr_str(line, "URI").map(|u| resolve_url(base_url, &u)) {
-                let range = extract_attr_str(line, "BYTERANGE").map(|r| parse_byte_range(&r, 0));
-                map = Some(Resource {
-                    url,
-                    range,
-                    duration: None,
-                });
-            }
-        } else if let Some(stripped) = line.strip_prefix("#EXT-X-BYTERANGE:") {
-            let r = parse_byte_range(stripped, next_offset);
-            next_offset = r.offset + r.length;
-            pending_range = Some(r);
-        } else if line.starts_with("#EXTINF:") {
-            let seg_duration = line
-                .strip_prefix("#EXTINF:")
-                .and_then(|rest| rest.split(',').next())
-                .and_then(|d| d.trim().parse::<f64>().ok());
-            let mut j = i + 1;
-            while j < lines.len() && lines[j].starts_with('#') {
-                if let Some(stripped) = lines[j].strip_prefix("#EXT-X-BYTERANGE:") {
-                    let r = parse_byte_range(stripped, next_offset);
-                    next_offset = r.offset + r.length;
-                    pending_range = Some(r);
+            } else if let Some(stripped) = line.strip_prefix("#EXT-X-BYTERANGE:") {
+                let r = parse_byte_range(stripped, next_offset);
+                next_offset = r.offset + r.length;
+                pending_range = Some(r);
+            } else if line.starts_with("#EXTINF:") {
+                let seg_duration = line
+                    .strip_prefix("#EXTINF:")
+                    .and_then(|rest| rest.split(',').next())
+                    .and_then(|d| d.trim().parse::<f64>().ok());
+                let mut j = i + 1;
+                while j < lines.len() && lines[j].starts_with('#') {
+                    if let Some(stripped) = lines[j].strip_prefix("#EXT-X-BYTERANGE:") {
+                        let r = parse_byte_range(stripped, next_offset);
+                        next_offset = r.offset + r.length;
+                        pending_range = Some(r);
+                    }
+                    j += 1;
                 }
-                j += 1;
-            }
-            if j < lines.len() {
-                segments.push(Resource {
-                    url: resolve_url(base_url, lines[j]),
-                    range: pending_range.take(),
-                    duration: seg_duration,
-                });
+                if j < lines.len() {
+                    segments.push(Resource {
+                        url: resolve_url(base_url, lines[j]),
+                        range: pending_range.take(),
+                        duration: seg_duration,
+                    });
+                }
             }
         }
+        M3u8Playlist::Media { segments, map }
     }
-    M3u8Playlist::Media { segments, map }
-}
 }
 pub mod resolver {
-use std::sync::Arc;
-use super::{
-    parser::parse_m3u8,
-    types::{M3u8Playlist, Resource},
-};
-use crate::{common::types::AnyResult, sources::youtube::cipher::YouTubeCipherManager};
-pub async fn resolve_playlist(
-    client: &reqwest::Client,
-    url: &str,
-) -> AnyResult<(Vec<Resource>, Option<Resource>)> {
-    let text = fetch_text(client, url).await?;
-    let playlist = parse_m3u8(&text, url);
-    match playlist {
-        M3u8Playlist::Master {
-            variants,
-            audio_groups,
-        } => {
-            let best = variants
-                .iter()
-                .filter(|v| v.is_audio_only)
-                .max_by_key(|v| v.bandwidth)
-                .or_else(|| {
-                    variants
-                        .iter()
-                        .filter(|v| v.audio_group.is_some())
-                        .max_by_key(|v| v.bandwidth)
-                })
-                .or_else(|| variants.iter().max_by_key(|v| v.bandwidth));
-            match best {
-                Some(v) => {
-                    if let Some(group_id) = &v.audio_group
-                        && let Some(group) = audio_groups.get(group_id)
-                    {
-                        let rendition = group
+    use super::{
+        parser::parse_m3u8,
+        types::{M3u8Playlist, Resource},
+    };
+    use crate::{common::types::AnyResult, sources::youtube::cipher::YouTubeCipherManager};
+    use std::sync::Arc;
+    pub async fn resolve_playlist(
+        client: &reqwest::Client,
+        url: &str,
+    ) -> AnyResult<(Vec<Resource>, Option<Resource>)> {
+        let text = fetch_text(client, url).await?;
+        let playlist = parse_m3u8(&text, url);
+        match playlist {
+            M3u8Playlist::Master {
+                variants,
+                audio_groups,
+            } => {
+                let best = variants
+                    .iter()
+                    .filter(|v| v.is_audio_only)
+                    .max_by_key(|v| v.bandwidth)
+                    .or_else(|| {
+                        variants
                             .iter()
-                            .find(|m| m.is_default)
-                            .or_else(|| group.iter().find(|m| m.uri.is_some()))
-                            .and_then(|m| m.uri.as_ref());
-                        if let Some(uri) = rendition {
-                            tracing::debug!("HLS: selected audio group {} -> {}", group_id, uri);
-                            return Box::pin(resolve_playlist(client, uri)).await;
+                            .filter(|v| v.audio_group.is_some())
+                            .max_by_key(|v| v.bandwidth)
+                    })
+                    .or_else(|| variants.iter().max_by_key(|v| v.bandwidth));
+                match best {
+                    Some(v) => {
+                        if let Some(group_id) = &v.audio_group
+                            && let Some(group) = audio_groups.get(group_id)
+                        {
+                            let rendition = group
+                                .iter()
+                                .find(|m| m.is_default)
+                                .or_else(|| group.iter().find(|m| m.uri.is_some()))
+                                .and_then(|m| m.uri.as_ref());
+                            if let Some(uri) = rendition {
+                                tracing::debug!(
+                                    "HLS: selected audio group {} -> {}",
+                                    group_id,
+                                    uri
+                                );
+                                return Box::pin(resolve_playlist(client, uri)).await;
+                            }
                         }
+                        tracing::debug!(
+                            "HLS: selected variant bw={} codecs={:?} audio_only={} audio_group={:?} url={}",
+                            v.bandwidth,
+                            v.codecs,
+                            v.is_audio_only,
+                            v.audio_group,
+                            v.url
+                        );
+                        Box::pin(resolve_playlist(client, &v.url)).await
                     }
-                    tracing::debug!(
-                        "HLS: selected variant bw={} codecs={:?} audio_only={} audio_group={:?} url={}",
-                        v.bandwidth,
-                        v.codecs,
-                        v.is_audio_only,
-                        v.audio_group,
-                        v.url
-                    );
-                    Box::pin(resolve_playlist(client, &v.url)).await
+                    None => Err("HLS master playlist has no variants".into()),
                 }
-                None => Err("HLS master playlist has no variants".into()),
             }
+            M3u8Playlist::Media { segments, map } => Ok((segments, map)),
         }
-        M3u8Playlist::Media { segments, map } => Ok((segments, map)),
     }
-}
-pub async fn fetch_text(client: &reqwest::Client, url: &str) -> AnyResult<String> {
-    let res = client
-        .get(url)
-        .header("Accept", "application/x-mpegURL, */*")
-        .send()
-        .await?;
-    if !res.status().is_success() {
-        return Err(format!("HLS playlist fetch failed {}: {}", res.status(), url).into());
+    pub async fn fetch_text(client: &reqwest::Client, url: &str) -> AnyResult<String> {
+        let res = client
+            .get(url)
+            .header("Accept", "application/x-mpegURL, */*")
+            .send()
+            .await?;
+        if !res.status().is_success() {
+            return Err(format!("HLS playlist fetch failed {}: {}", res.status(), url).into());
+        }
+        let text = res.text().await?;
+        Ok(text)
     }
-    let text = res.text().await?;
-    Ok(text)
-}
-pub async fn resolve_url_string(
-    url: &str,
-    cipher_manager: &Option<Arc<YouTubeCipherManager>>,
-    player_url: &Option<String>,
-) -> AnyResult<String> {
-    let (cipher, p_url) = match (cipher_manager, player_url) {
-        (Some(c), Some(p)) => (c, p),
-        _ => return Ok(url.to_string()),
-    };
-    let n_token = if let Some(pos) = url.find("/n/") {
-        let rest = &url[pos + 3..];
-        rest.split('/').next()
-    } else {
-        url.split("&n=")
-            .nth(1)
-            .or_else(|| url.split("?n=").nth(1))
-            .and_then(|s| s.split('&').next())
-    };
-    if let Some(n) = n_token {
-        let cipher = cipher.clone();
-        let url_str = url.to_string();
-        let p_url_str = p_url.clone();
-        let n_str = n.to_string();
-        Ok(cipher
-            .resolve_url(&url_str, &p_url_str, Some(&n_str), None)
-            .await?)
-    } else {
-        Ok(url.to_string())
+    pub async fn resolve_url_string(
+        url: &str,
+        cipher_manager: &Option<Arc<YouTubeCipherManager>>,
+        player_url: &Option<String>,
+    ) -> AnyResult<String> {
+        let (cipher, p_url) = match (cipher_manager, player_url) {
+            (Some(c), Some(p)) => (c, p),
+            _ => return Ok(url.to_string()),
+        };
+        let n_token = if let Some(pos) = url.find("/n/") {
+            let rest = &url[pos + 3..];
+            rest.split('/').next()
+        } else {
+            url.split("&n=")
+                .nth(1)
+                .or_else(|| url.split("?n=").nth(1))
+                .and_then(|s| s.split('&').next())
+        };
+        if let Some(n) = n_token {
+            let cipher = cipher.clone();
+            let url_str = url.to_string();
+            let p_url_str = p_url.clone();
+            let n_str = n.to_string();
+            Ok(cipher
+                .resolve_url(&url_str, &p_url_str, Some(&n_str), None)
+                .await?)
+        } else {
+            Ok(url.to_string())
+        }
     }
-}
 }
 pub mod ts_demux {
-const TS_PACKET_SIZE: usize = 188;
-const TS_SYNC_BYTE: u8 = 0x47;
-const PAT_PID: u16 = 0x0000;
-const STREAM_TYPE_AAC: u8 = 0x0F; 
-const STREAM_TYPE_AAC_LATM: u8 = 0x11; 
-pub fn extract_adts_from_ts(ts_data: &[u8]) -> Vec<u8> {
-    let mut adts_out = Vec::with_capacity(ts_data.len() / 2);
-    let mut pmt_pid: Option<u16> = None;
-    let mut audio_pid: Option<u16> = None;
-    let mut offset = 0;
-    while offset < ts_data.len() && ts_data[offset] != TS_SYNC_BYTE {
-        offset += 1;
+    const TS_PACKET_SIZE: usize = 188;
+    const TS_SYNC_BYTE: u8 = 0x47;
+    const PAT_PID: u16 = 0x0000;
+    const STREAM_TYPE_AAC: u8 = 0x0F;
+    const STREAM_TYPE_AAC_LATM: u8 = 0x11;
+    pub fn extract_adts_from_ts(ts_data: &[u8]) -> Vec<u8> {
+        let mut adts_out = Vec::with_capacity(ts_data.len() / 2);
+        let mut pmt_pid: Option<u16> = None;
+        let mut audio_pid: Option<u16> = None;
+        let mut offset = 0;
+        while offset < ts_data.len() && ts_data[offset] != TS_SYNC_BYTE {
+            offset += 1;
+        }
+        while offset + TS_PACKET_SIZE <= ts_data.len() {
+            let packet = &ts_data[offset..offset + TS_PACKET_SIZE];
+            offset += TS_PACKET_SIZE;
+            if packet[0] != TS_SYNC_BYTE {
+                let remaining = &ts_data[offset..];
+                if let Some(sync_pos) = remaining.iter().position(|&b| b == TS_SYNC_BYTE) {
+                    offset += sync_pos;
+                } else {
+                    break;
+                }
+                continue;
+            }
+            let _transport_error = (packet[1] & 0x80) != 0;
+            let payload_start = (packet[1] & 0x40) != 0;
+            let pid = ((packet[1] as u16 & 0x1F) << 8) | packet[2] as u16;
+            let adaptation_field_control = (packet[3] >> 4) & 0x03;
+            if _transport_error {
+                continue;
+            }
+            let mut payload_offset: usize = 4;
+            if (adaptation_field_control == 2 || adaptation_field_control == 3)
+                && payload_offset < TS_PACKET_SIZE
+            {
+                let adaptation_length = packet[payload_offset] as usize;
+                payload_offset += 1 + adaptation_length;
+            }
+            if adaptation_field_control == 0 || adaptation_field_control == 2 {
+                continue;
+            }
+            if payload_offset >= TS_PACKET_SIZE {
+                continue;
+            }
+            let payload = &packet[payload_offset..];
+            if pid == PAT_PID {
+                if let Some(pid) = parse_pat(payload, payload_start) {
+                    pmt_pid = Some(pid);
+                }
+                continue;
+            }
+            if Some(pid) == pmt_pid {
+                if let Some(pid) = parse_pmt(payload, payload_start) {
+                    audio_pid = Some(pid);
+                }
+                continue;
+            }
+            if Some(pid) == audio_pid {
+                extract_pes_payload(payload, payload_start, &mut adts_out);
+            }
+        }
+        adts_out
     }
-    while offset + TS_PACKET_SIZE <= ts_data.len() {
-        let packet = &ts_data[offset..offset + TS_PACKET_SIZE];
-        offset += TS_PACKET_SIZE;
-        if packet[0] != TS_SYNC_BYTE {
-            let remaining = &ts_data[offset..];
-            if let Some(sync_pos) = remaining.iter().position(|&b| b == TS_SYNC_BYTE) {
-                offset += sync_pos;
-            } else {
-                break;
+    fn parse_pat(payload: &[u8], payload_start: bool) -> Option<u16> {
+        let data = if payload_start && !payload.is_empty() {
+            let pointer = payload[0] as usize;
+            if 1 + pointer >= payload.len() {
+                return None;
             }
-            continue;
-        }
-        let _transport_error = (packet[1] & 0x80) != 0;
-        let payload_start = (packet[1] & 0x40) != 0;
-        let pid = ((packet[1] as u16 & 0x1F) << 8) | packet[2] as u16;
-        let adaptation_field_control = (packet[3] >> 4) & 0x03;
-        if _transport_error {
-            continue;
-        }
-        let mut payload_offset: usize = 4;
-        if (adaptation_field_control == 2 || adaptation_field_control == 3)
-            && payload_offset < TS_PACKET_SIZE
-        {
-            let adaptation_length = packet[payload_offset] as usize;
-            payload_offset += 1 + adaptation_length;
-        }
-        if adaptation_field_control == 0 || adaptation_field_control == 2 {
-            continue;
-        }
-        if payload_offset >= TS_PACKET_SIZE {
-            continue;
-        }
-        let payload = &packet[payload_offset..];
-        if pid == PAT_PID {
-            if let Some(pid) = parse_pat(payload, payload_start) {
-                pmt_pid = Some(pid);
-            }
-            continue;
-        }
-        if Some(pid) == pmt_pid {
-            if let Some(pid) = parse_pmt(payload, payload_start) {
-                audio_pid = Some(pid);
-            }
-            continue;
-        }
-        if Some(pid) == audio_pid {
-            extract_pes_payload(payload, payload_start, &mut adts_out);
-        }
-    }
-    adts_out
-}
-fn parse_pat(payload: &[u8], payload_start: bool) -> Option<u16> {
-    let data = if payload_start && !payload.is_empty() {
-        let pointer = payload[0] as usize;
-        if 1 + pointer >= payload.len() {
+            &payload[1 + pointer..]
+        } else {
+            payload
+        };
+        if data.len() < 8 {
             return None;
         }
-        &payload[1 + pointer..]
-    } else {
-        payload
-    };
-    if data.len() < 8 {
-        return None;
-    }
-    let _table_id = data[0]; 
-    let section_length = ((data[1] as usize & 0x0F) << 8) | data[2] as usize;
-    let header_size = 8;
-    let entries_end = std::cmp::min(header_size + section_length.saturating_sub(5), data.len());
-    let mut pos = header_size;
-    while pos + 4 <= entries_end {
-        let program_number = ((data[pos] as u16) << 8) | data[pos + 1] as u16;
-        let pid = ((data[pos + 2] as u16 & 0x1F) << 8) | data[pos + 3] as u16;
-        if program_number != 0 {
-            return Some(pid);
+        let _table_id = data[0];
+        let section_length = ((data[1] as usize & 0x0F) << 8) | data[2] as usize;
+        let header_size = 8;
+        let entries_end = std::cmp::min(header_size + section_length.saturating_sub(5), data.len());
+        let mut pos = header_size;
+        while pos + 4 <= entries_end {
+            let program_number = ((data[pos] as u16) << 8) | data[pos + 1] as u16;
+            let pid = ((data[pos + 2] as u16 & 0x1F) << 8) | data[pos + 3] as u16;
+            if program_number != 0 {
+                return Some(pid);
+            }
+            pos += 4;
         }
-        pos += 4;
+        None
     }
-    None
-}
-fn parse_pmt(payload: &[u8], payload_start: bool) -> Option<u16> {
-    let data = if payload_start && !payload.is_empty() {
-        let pointer = payload[0] as usize;
-        if 1 + pointer >= payload.len() {
+    fn parse_pmt(payload: &[u8], payload_start: bool) -> Option<u16> {
+        let data = if payload_start && !payload.is_empty() {
+            let pointer = payload[0] as usize;
+            if 1 + pointer >= payload.len() {
+                return None;
+            }
+            &payload[1 + pointer..]
+        } else {
+            payload
+        };
+        if data.len() < 12 {
             return None;
         }
-        &payload[1 + pointer..]
-    } else {
-        payload
-    };
-    if data.len() < 12 {
-        return None;
+        let section_length = ((data[1] as usize & 0x0F) << 8) | data[2] as usize;
+        let program_info_length = ((data[10] as usize & 0x0F) << 8) | data[11] as usize;
+        let mut pos = 12 + program_info_length;
+        let section_end = std::cmp::min(3 + section_length.saturating_sub(4), data.len());
+        while pos + 5 <= section_end {
+            let stream_type = data[pos];
+            let elementary_pid = ((data[pos + 1] as u16 & 0x1F) << 8) | data[pos + 2] as u16;
+            let es_info_length = ((data[pos + 3] as usize & 0x0F) << 8) | data[pos + 4] as usize;
+            if stream_type == STREAM_TYPE_AAC || stream_type == STREAM_TYPE_AAC_LATM {
+                return Some(elementary_pid);
+            }
+            if stream_type == 0x03 || stream_type == 0x04 {
+                return Some(elementary_pid);
+            }
+            pos += 5 + es_info_length;
+        }
+        None
     }
-    let section_length = ((data[1] as usize & 0x0F) << 8) | data[2] as usize;
-    let program_info_length = ((data[10] as usize & 0x0F) << 8) | data[11] as usize;
-    let mut pos = 12 + program_info_length;
-    let section_end = std::cmp::min(3 + section_length.saturating_sub(4), data.len());
-    while pos + 5 <= section_end {
-        let stream_type = data[pos];
-        let elementary_pid = ((data[pos + 1] as u16 & 0x1F) << 8) | data[pos + 2] as u16;
-        let es_info_length = ((data[pos + 3] as usize & 0x0F) << 8) | data[pos + 4] as usize;
-        if stream_type == STREAM_TYPE_AAC || stream_type == STREAM_TYPE_AAC_LATM {
-            return Some(elementary_pid);
-        }
-        if stream_type == 0x03 || stream_type == 0x04 {
-            return Some(elementary_pid);
-        }
-        pos += 5 + es_info_length;
-    }
-    None
-}
-fn extract_pes_payload(payload: &[u8], payload_start: bool, out: &mut Vec<u8>) {
-    if payload_start {
-        if payload.len() < 9 {
-            return;
-        }
-        if payload[0] != 0x00 || payload[1] != 0x00 || payload[2] != 0x01 {
+    fn extract_pes_payload(payload: &[u8], payload_start: bool, out: &mut Vec<u8>) {
+        if payload_start {
+            if payload.len() < 9 {
+                return;
+            }
+            if payload[0] != 0x00 || payload[1] != 0x00 || payload[2] != 0x01 {
+                out.extend_from_slice(payload);
+                return;
+            }
+            let header_data_length = payload[8] as usize;
+            let pes_header_size = 9 + header_data_length;
+            if pes_header_size < payload.len() {
+                out.extend_from_slice(&payload[pes_header_size..]);
+            }
+        } else {
             out.extend_from_slice(payload);
-            return;
         }
-        let header_data_length = payload[8] as usize;
-        let pes_header_size = 9 + header_data_length;
-        if pes_header_size < payload.len() {
-            out.extend_from_slice(&payload[pes_header_size..]);
-        }
-    } else {
-        out.extend_from_slice(payload);
     }
-}
 }
 pub mod types {
-use std::collections::HashMap;
-#[derive(Clone, Debug)]
-pub struct ByteRange {
-    pub length: u64,
-    pub offset: u64,
-}
-#[derive(Clone, Debug)]
-pub struct Resource {
-    pub url: String,
-    pub range: Option<ByteRange>,
-    pub duration: Option<f64>,
-}
-pub struct Variant {
-    pub url: String,
-    pub bandwidth: u64,
-    pub codecs: String,
-    pub is_audio_only: bool,
-    pub audio_group: Option<String>,
-}
-pub struct Media {
-    pub _type: String,
-    pub _group_id: String,
-    pub uri: Option<String>,
-    pub is_default: bool,
-}
-pub enum M3u8Playlist {
-    Master {
-        variants: Vec<Variant>,
-        audio_groups: HashMap<String, Vec<Media>>,
-    },
-    Media {
-        segments: Vec<Resource>,
-        map: Option<Resource>,
-    },
-}
+    use std::collections::HashMap;
+    #[derive(Clone, Debug)]
+    pub struct ByteRange {
+        pub length: u64,
+        pub offset: u64,
+    }
+    #[derive(Clone, Debug)]
+    pub struct Resource {
+        pub url: String,
+        pub range: Option<ByteRange>,
+        pub duration: Option<f64>,
+    }
+    pub struct Variant {
+        pub url: String,
+        pub bandwidth: u64,
+        pub codecs: String,
+        pub is_audio_only: bool,
+        pub audio_group: Option<String>,
+    }
+    pub struct Media {
+        pub _type: String,
+        pub _group_id: String,
+        pub uri: Option<String>,
+        pub is_default: bool,
+    }
+    pub enum M3u8Playlist {
+        Master {
+            variants: Vec<Variant>,
+            audio_groups: HashMap<String, Vec<Media>>,
+        },
+        Media {
+            segments: Vec<Resource>,
+            map: Option<Resource>,
+        },
+    }
 }
 pub mod utils {
-use super::types::ByteRange;
-pub fn extract_attr_u64(line: &str, key: &str) -> Option<u64> {
-    extract_attr_str(line, key)?.parse().ok()
-}
-pub fn extract_attr_str(line: &str, key: &str) -> Option<String> {
-    let key_eq = format!("{}=", key);
-    let pos = line
-        .find(&format!(":{}", key_eq))
-        .map(|p| p + 1)
-        .or_else(|| line.find(&format!(",{}", key_eq)).map(|p| p + 1))?;
-    let rest = &line[pos + key_eq.len()..];
-    if let Some(stripped) = rest.strip_prefix('"') {
-        let end = stripped.find('"')?;
-        Some(stripped[..end].to_string())
-    } else {
-        let end = rest.find(',').unwrap_or(rest.len());
-        Some(rest[..end].trim().to_string())
+    use super::types::ByteRange;
+    pub fn extract_attr_u64(line: &str, key: &str) -> Option<u64> {
+        extract_attr_str(line, key)?.parse().ok()
+    }
+    pub fn extract_attr_str(line: &str, key: &str) -> Option<String> {
+        let key_eq = format!("{}=", key);
+        let pos = line
+            .find(&format!(":{}", key_eq))
+            .map(|p| p + 1)
+            .or_else(|| line.find(&format!(",{}", key_eq)).map(|p| p + 1))?;
+        let rest = &line[pos + key_eq.len()..];
+        if let Some(stripped) = rest.strip_prefix('"') {
+            let end = stripped.find('"')?;
+            Some(stripped[..end].to_string())
+        } else {
+            let end = rest.find(',').unwrap_or(rest.len());
+            Some(rest[..end].trim().to_string())
+        }
+    }
+    pub fn resolve_url(base: &str, maybe_relative: &str) -> String {
+        if maybe_relative.starts_with("http://") || maybe_relative.starts_with("https://") {
+            return maybe_relative.to_string();
+        }
+        let base_clean = base.split('?').next().unwrap_or(base);
+        let base_clean = base_clean.split('#').next().unwrap_or(base_clean);
+        if maybe_relative.starts_with('/')
+            && let Some(scheme_end) = base_clean.find("://")
+        {
+            let host_start = scheme_end + 3;
+            let host_end = base_clean[host_start..]
+                .find('/')
+                .map(|p| host_start + p)
+                .unwrap_or(base_clean.len());
+            return format!("{}{}", &base_clean[..host_end], maybe_relative);
+        }
+        let base_dir = base_clean
+            .rfind('/')
+            .map(|i| &base_clean[..=i])
+            .unwrap_or(base_clean);
+        format!("{}{}", base_dir, maybe_relative)
+    }
+    pub fn parse_byte_range(attr: &str, last_end_offset: u64) -> ByteRange {
+        let attr = attr.trim().trim_matches('"');
+        let parts: Vec<&str> = attr.split('@').collect();
+        let length = parts[0].trim().parse::<u64>().unwrap_or(0);
+        let offset = if parts.len() > 1 {
+            parts[1].trim().parse::<u64>().unwrap_or(0)
+        } else {
+            last_end_offset
+        };
+        ByteRange { length, offset }
     }
 }
-pub fn resolve_url(base: &str, maybe_relative: &str) -> String {
-    if maybe_relative.starts_with("http://") || maybe_relative.starts_with("https://") {
-        return maybe_relative.to_string();
-    }
-    let base_clean = base.split('?').next().unwrap_or(base);
-    let base_clean = base_clean.split('#').next().unwrap_or(base_clean);
-    if maybe_relative.starts_with('/')
-        && let Some(scheme_end) = base_clean.find("://")
-    {
-        let host_start = scheme_end + 3;
-        let host_end = base_clean[host_start..]
-            .find('/')
-            .map(|p| host_start + p)
-            .unwrap_or(base_clean.len());
-        return format!("{}{}", &base_clean[..host_end], maybe_relative);
-    }
-    let base_dir = base_clean
-        .rfind('/')
-        .map(|i| &base_clean[..=i])
-        .unwrap_or(base_clean);
-    format!("{}{}", base_dir, maybe_relative)
-}
-pub fn parse_byte_range(attr: &str, last_end_offset: u64) -> ByteRange {
-    let attr = attr.trim().trim_matches('"');
-    let parts: Vec<&str> = attr.split('@').collect();
-    let length = parts[0].trim().parse::<u64>().unwrap_or(0);
-    let offset = if parts.len() > 1 {
-        parts[1].trim().parse::<u64>().unwrap_or(0)
-    } else {
-        last_end_offset
-    };
-    ByteRange { length, offset }
-}
-}
+use self::{
+    fetcher::fetch_segment_into,
+    resolver::{resolve_playlist, resolve_url_string},
+    ts_demux::extract_adts_from_ts,
+    types::Resource,
+};
 use crate::common::types::AnyResult;
+use crate::{config::HttpProxyConfig, sources::youtube::cipher::YouTubeCipherManager};
+use parking_lot::{Condvar, Mutex};
 use std::{
     io::{self, Read, Seek, SeekFrom},
     sync::{
@@ -483,17 +498,9 @@ use std::{
         atomic::{AtomicBool, Ordering},
     },
 };
-use parking_lot::{Condvar, Mutex};
 use symphonia::core::io::MediaSource;
-use self::{
-    fetcher::fetch_segment_into,
-    resolver::{resolve_playlist, resolve_url_string},
-    ts_demux::extract_adts_from_ts,
-    types::Resource,
-};
-use crate::{config::HttpProxyConfig, sources::youtube::cipher::YouTubeCipherManager};
 const PREFETCH_SEGMENTS: usize = 4;
-const LOW_WATER_BYTES: usize = 512 * 1024; 
+const LOW_WATER_BYTES: usize = 512 * 1024;
 enum PrefetchCommand {
     Continue,
     Seek(usize),
@@ -587,7 +594,7 @@ impl HlsReader {
         let current_segment_index = first_batch.len();
         let shared_state = SharedState {
             next_buf: Vec::with_capacity(512 * 1024),
-            need_data: true, 
+            need_data: true,
             pending,
             current_segment_index,
             command: PrefetchCommand::Continue,
@@ -711,7 +718,7 @@ impl Read for HlsReader {
             cvar.wait(&mut state);
         }
         if state.next_buf.is_empty() && state.eos {
-            return Ok(0); 
+            return Ok(0);
         }
         self.buf.clear();
         self.pos = 0;
@@ -802,7 +809,7 @@ async fn prefetch_loop(
                     }
                 }
             }
-        }; 
+        };
         match action {
             Action::Stop => return,
             Action::Eos => continue,

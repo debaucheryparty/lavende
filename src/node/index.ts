@@ -1,6 +1,6 @@
-import { EventEmitter } from 'events';
+import { EventEmitter } from "events";
 
-const native = require('../index.js');
+const native = require("../index.js");
 
 export interface TrackInfo {
   title: string;
@@ -43,13 +43,13 @@ export class Queue {
 
   public add(track: Track | Track[], index?: number): void {
     if (Array.isArray(track)) {
-      if (typeof index === 'number') {
+      if (typeof index === "number") {
         this.tracks.splice(index, 0, ...track);
       } else {
         this.tracks.push(...track);
       }
     } else {
-      if (typeof index === 'number') {
+      if (typeof index === "number") {
         this.tracks.splice(index, 0, track);
       } else {
         this.tracks.push(track);
@@ -87,7 +87,7 @@ export class Queue {
     totalDuration: () => {
       return this.tracks.reduce(
         (acc, cur) => acc + (cur.info.length || 0),
-        this.current?.info.length || 0
+        this.current?.info.length || 0,
       );
     },
     filterTracks: (predicate: (track: Track, index: number) => boolean) => {
@@ -98,7 +98,7 @@ export class Queue {
     findTrack: (predicate: (track: Track, index: number) => boolean) => {
       const results = this.utils.filterTracks(predicate);
       return results.length > 0 ? results[0] : null;
-    }
+    },
   };
 }
 
@@ -112,7 +112,7 @@ export class FilterManager {
     tremolo: false,
     vibrato: false,
     lowPass: false,
-    audioOutput: 'stereo'
+    audioOutput: "stereo",
   };
 
   constructor(player: Player) {
@@ -137,7 +137,7 @@ export class FilterManager {
       tremolo: false,
       vibrato: false,
       lowPass: false,
-      audioOutput: 'stereo'
+      audioOutput: "stereo",
     };
     await this.applyPlayerFilters();
     return this;
@@ -150,11 +150,27 @@ export class FilterManager {
     return this;
   }
 
-  public async setAudioOutput(type: 'mono' | 'stereo' | 'left' | 'right'): Promise<FilterManager> {
-    const mix = type === 'mono' ? { leftToLeft: 0.5, leftToRight: 0.5, rightToLeft: 0.5, rightToRight: 0.5 } :
-      type === 'left' ? { leftToLeft: 1, leftToRight: 0, rightToLeft: 1, rightToRight: 0 } :
-        type === 'right' ? { leftToLeft: 0, leftToRight: 1, rightToLeft: 0, rightToRight: 1 } :
-          { leftToLeft: 1, leftToRight: 0, rightToLeft: 0, rightToRight: 1 };
+  public async setAudioOutput(
+    type: "mono" | "stereo" | "left" | "right",
+  ): Promise<FilterManager> {
+    const mix =
+      type === "mono"
+        ? {
+            leftToLeft: 0.5,
+            leftToRight: 0.5,
+            rightToLeft: 0.5,
+            rightToRight: 0.5,
+          }
+        : type === "left"
+          ? { leftToLeft: 1, leftToRight: 0, rightToLeft: 1, rightToRight: 0 }
+          : type === "right"
+            ? { leftToLeft: 0, leftToRight: 1, rightToLeft: 0, rightToRight: 1 }
+            : {
+                leftToLeft: 1,
+                leftToRight: 0,
+                rightToLeft: 0,
+                rightToRight: 1,
+              };
     this.data.channelMix = mix;
     this.filters.audioOutput = type;
     await this.applyPlayerFilters();
@@ -179,7 +195,9 @@ export class FilterManager {
     return this;
   }
 
-  public async toggleRotation(rotationHz: number = 0.2): Promise<FilterManager> {
+  public async toggleRotation(
+    rotationHz: number = 0.2,
+  ): Promise<FilterManager> {
     if (this.filters.rotation) {
       delete this.data.rotation;
     } else {
@@ -190,7 +208,10 @@ export class FilterManager {
     return this;
   }
 
-  public async toggleVibrato(frequency: number = 10, depth: number = 1): Promise<FilterManager> {
+  public async toggleVibrato(
+    frequency: number = 10,
+    depth: number = 1,
+  ): Promise<FilterManager> {
     if (this.filters.vibrato) {
       delete this.data.vibrato;
     } else {
@@ -201,7 +222,10 @@ export class FilterManager {
     return this;
   }
 
-  public async toggleTremolo(frequency: number = 4, depth: number = 0.8): Promise<FilterManager> {
+  public async toggleTremolo(
+    frequency: number = 4,
+    depth: number = 0.8,
+  ): Promise<FilterManager> {
     if (this.filters.tremolo) {
       delete this.data.tremolo;
     } else {
@@ -232,7 +256,7 @@ export class Player extends EventEmitter {
   public volume: number = 100;
   public paused: boolean = false;
   public playing: boolean = false;
-  public repeatMode: 'off' | 'track' | 'queue' = 'off';
+  public repeatMode: "off" | "track" | "queue" = "off";
   public selfDeaf: boolean = true;
   public voiceState: {
     sessionId?: string;
@@ -240,9 +264,9 @@ export class Player extends EventEmitter {
     endpoint?: string;
   } = {};
   public node: any = {
-    sessionId: 'local-session',
+    sessionId: "local-session",
     _checkForSources: false,
-    _checkForPlugins: false
+    _checkForPlugins: false,
   };
 
   public playOnConnect: boolean = false;
@@ -254,7 +278,7 @@ export class Player extends EventEmitter {
     this.guildId = options.guildId;
     this.voiceChannelId = options.voiceChannelId;
     this.textChannelId = options.textChannelId || null;
-    this.volume = typeof options.volume === 'number' ? options.volume : 100;
+    this.volume = typeof options.volume === "number" ? options.volume : 100;
     this.selfDeaf = options.selfDeaf !== false;
     this.player = new native.Player(options.guildId);
     this.queue = new Queue(options.guildId);
@@ -293,7 +317,11 @@ export class Player extends EventEmitter {
     return { ...this.data };
   }
 
-  public setVoiceState(state: { sessionId?: string; token?: string; endpoint?: string }) {
+  public setVoiceState(state: {
+    sessionId?: string;
+    token?: string;
+    endpoint?: string;
+  }) {
     this.voiceState = { ...this.voiceState, ...state };
   }
 
@@ -301,9 +329,11 @@ export class Player extends EventEmitter {
     const { sessionId, token, endpoint } = this.voiceState;
     if (sessionId && token && endpoint && this.playOnConnect) {
       this.playOnConnect = false;
-      console.log(`[Player ${this.guildId}] Delayed play handshake completed, starting playback.`);
+      console.log(
+        `[Player ${this.guildId}] Delayed play handshake completed, starting playback.`,
+      );
       process.nextTick(() => {
-        this.play().catch(err => this.emit('error', this, err));
+        this.play().catch((err) => this.emit("error", this, err));
       });
     }
   }
@@ -336,33 +366,37 @@ export class Player extends EventEmitter {
 
   public async destroy(reason?: string): Promise<void> {
     await this.disconnect();
-    this.emit('playerDestroy', this, reason);
+    this.emit("playerDestroy", this, reason);
     this.manager.players.delete(this.guildId);
   }
 
   public async search(
     query: string | { query: string; source?: string },
-    requester: any = null
+    requester: any = null,
   ): Promise<{
-    loadType: 'track' | 'playlist' | 'search' | 'empty' | 'error';
+    loadType: "track" | "playlist" | "search" | "empty" | "error";
     tracks: Track[];
     playlistInfo?: { name: string; selectedTrack?: number };
     exception?: { message: string; severity: string };
   }> {
-    const searchStr = typeof query === 'string' ? query : query.query;
+    const searchStr = typeof query === "string" ? query : query.query;
     return load(searchStr, requester);
   }
 
-  public async play(options?: { track?: Track; volume?: number; paused?: boolean }): Promise<void> {
+  public async play(options?: {
+    track?: Track;
+    volume?: number;
+    paused?: boolean;
+  }): Promise<void> {
     if (options?.track) {
       this.queue.current = options.track;
     }
 
-    if (typeof options?.volume === 'number') {
+    if (typeof options?.volume === "number") {
       this.volume = options.volume;
     }
 
-    if (typeof options?.paused === 'boolean') {
+    if (typeof options?.paused === "boolean") {
       this.paused = options.paused;
     }
 
@@ -370,7 +404,7 @@ export class Player extends EventEmitter {
       const next = this.queue.tracks.shift();
       if (!next) {
         this.playing = false;
-        this.emit('queueEnd', this);
+        this.emit("queueEnd", this);
         return;
       }
       this.queue.current = next;
@@ -383,7 +417,9 @@ export class Player extends EventEmitter {
 
     const { sessionId, token, endpoint } = this.voiceState;
     if (!sessionId || !token || !endpoint) {
-      console.log(`[Player ${this.guildId}] Handshake not finished. Queued play for when connected.`);
+      console.log(
+        `[Player ${this.guildId}] Handshake not finished. Queued play for when connected.`,
+      );
       this.playOnConnect = true;
       return;
     }
@@ -393,14 +429,17 @@ export class Player extends EventEmitter {
       const floatVolume = this.volume / 100.0;
       await this.player.setVolume(floatVolume);
 
-      console.log(`[Player ${this.guildId}] Invoking native.Player.play with params:`, {
-        clientId: this.manager.client.id,
-        voiceChannelId: this.voiceChannelId,
-        sessionId,
-        token,
-        endpoint,
-        identifier: currentTrack.info.uri
-      });
+      console.log(
+        `[Player ${this.guildId}] Invoking native.Player.play with params:`,
+        {
+          clientId: this.manager.client.id,
+          voiceChannelId: this.voiceChannelId,
+          sessionId,
+          token,
+          endpoint,
+          identifier: currentTrack.info.uri,
+        },
+      );
 
       await this.player.play(
         this.manager.client.id,
@@ -411,7 +450,7 @@ export class Player extends EventEmitter {
         currentTrack.info.uri,
         (err: Error | null, eventJson: string) => {
           if (err) {
-            this.emit('error', this, err);
+            this.emit("error", this, err);
             return;
           }
 
@@ -419,19 +458,24 @@ export class Player extends EventEmitter {
             const event = JSON.parse(eventJson);
             const type = event.type;
 
-            if (type === 'trackStart') {
-              this.emit('trackStart', this, currentTrack);
-            } else if (type === 'trackEnd') {
+            if (type === "trackStart") {
+              this.emit("trackStart", this, currentTrack);
+            } else if (type === "trackEnd") {
               this.playing = false;
-              this.emit('trackEnd', this, currentTrack, event.reason || 'FINISHED');
+              this.emit(
+                "trackEnd",
+                this,
+                currentTrack,
+                event.reason || "FINISHED",
+              );
               this.handleTrackEnd();
-            } else if (type === 'position') {
-              this.emit('position', this, event.position);
+            } else if (type === "position") {
+              this.emit("position", this, event.position);
             }
           } catch (parseErr) {
-            this.emit('error', this, parseErr);
+            this.emit("error", this, parseErr);
           }
-        }
+        },
       );
 
       if (this.paused) {
@@ -439,7 +483,7 @@ export class Player extends EventEmitter {
       }
     } catch (err) {
       this.playing = false;
-      this.emit('error', this, err);
+      this.emit("error", this, err);
       throw err;
     }
   }
@@ -447,9 +491,9 @@ export class Player extends EventEmitter {
   private async handleTrackEnd(): Promise<void> {
     const finishedTrack = this.queue.current;
     if (finishedTrack) {
-      if (this.repeatMode === 'track') {
+      if (this.repeatMode === "track") {
         await this.play();
-      } else if (this.repeatMode === 'queue') {
+      } else if (this.repeatMode === "queue") {
         this.queue.add(finishedTrack);
         this.queue.current = null;
         await this.play();
@@ -496,7 +540,7 @@ export class Player extends EventEmitter {
     await this.player.setVolume(floatVolume);
   }
 
-  public setRepeatMode(mode: 'off' | 'track' | 'queue'): void {
+  public setRepeatMode(mode: "off" | "track" | "queue"): void {
     this.repeatMode = mode;
   }
 
@@ -527,7 +571,7 @@ export class LavendeManager extends EventEmitter {
   public sendToShard: (guildId: string, payload: any) => void;
   public client: { id: string; username?: string };
   public nodeManager = {
-    nodes: new Map()
+    nodes: new Map(),
   };
 
   constructor(options: LavendeManagerOptions) {
@@ -547,13 +591,13 @@ export class LavendeManager extends EventEmitter {
     if (!player) {
       player = new Player(this, options);
       this.players.set(options.guildId, player);
-      this.emit('playerCreate', player);
+      this.emit("playerCreate", player);
 
-      player.on('trackStart', (p, t) => this.emit('trackStart', p, t));
-      player.on('trackEnd', (p, t, r) => this.emit('trackEnd', p, t, r));
-      player.on('queueEnd', (p) => this.emit('queueEnd', p));
-      player.on('playerDestroy', (p, r) => this.emit('playerDestroy', p, r));
-      player.on('error', (p, err) => this.emit('error', p, err));
+      player.on("trackStart", (p, t) => this.emit("trackStart", p, t));
+      player.on("trackEnd", (p, t, r) => this.emit("trackEnd", p, t, r));
+      player.on("queueEnd", (p) => this.emit("queueEnd", p));
+      player.on("playerDestroy", (p, r) => this.emit("playerDestroy", p, r));
+      player.on("error", (p, err) => this.emit("error", p, err));
     }
     return player;
   }
@@ -568,7 +612,7 @@ export class LavendeManager extends EventEmitter {
   public sendRawData(packet: any): void {
     if (!packet || !packet.t) return;
 
-    if (packet.t === 'VOICE_STATE_UPDATE') {
+    if (packet.t === "VOICE_STATE_UPDATE") {
       if (packet.d.user_id === this.client.id) {
         const player = this.players.get(packet.d.guild_id);
         if (player) {
@@ -581,7 +625,7 @@ export class LavendeManager extends EventEmitter {
       }
     }
 
-    if (packet.t === 'VOICE_SERVER_UPDATE') {
+    if (packet.t === "VOICE_SERVER_UPDATE") {
       const player = this.players.get(packet.d.guild_id);
       if (player) {
         player.setVoiceState({
@@ -598,9 +642,9 @@ export { Player as LavendePlayer };
 
 export async function load(
   identifier: string,
-  requester: any = null
+  requester: any = null,
 ): Promise<{
-  loadType: 'track' | 'playlist' | 'search' | 'empty' | 'error';
+  loadType: "track" | "playlist" | "search" | "empty" | "error";
   tracks: Track[];
   playlistInfo?: { name: string; selectedTrack?: number };
   exception?: { message: string; severity: string };
@@ -609,22 +653,22 @@ export async function load(
   const data = JSON.parse(jsonStr);
 
   const result: any = {
-    loadType: 'empty',
+    loadType: "empty",
     tracks: [],
   };
 
-  if (data.loadType === 'track') {
-    result.loadType = 'track';
+  if (data.loadType === "track") {
+    result.loadType = "track";
     result.tracks = [new Track(data.data, requester)];
-  } else if (data.loadType === 'playlist') {
-    result.loadType = 'playlist';
+  } else if (data.loadType === "playlist") {
+    result.loadType = "playlist";
     result.playlistInfo = data.data.info;
     result.tracks = data.data.tracks.map((t: any) => new Track(t, requester));
-  } else if (data.loadType === 'search') {
-    result.loadType = 'search';
+  } else if (data.loadType === "search") {
+    result.loadType = "search";
     result.tracks = data.data.map((t: any) => new Track(t, requester));
-  } else if (data.loadType === 'error') {
-    result.loadType = 'error';
+  } else if (data.loadType === "error") {
+    result.loadType = "error";
     result.exception = data.data;
   }
 
@@ -636,7 +680,9 @@ export class MiniMap<K, V> extends Map<K, V> {
     super(data);
   }
 
-  public filter(fn: (value: V, key: K, miniMap: this) => boolean): MiniMap<K, V> {
+  public filter(
+    fn: (value: V, key: K, miniMap: this) => boolean,
+  ): MiniMap<K, V> {
     const results = new MiniMap<K, V>();
     for (const [key, val] of this) {
       if (fn(val, key, this)) results.set(key, val);
@@ -701,7 +747,7 @@ export enum DebugEvents {
   PlayerAutoReconnect = "PlayerAutoReconnect",
   PlayerDestroyFail = "PlayerDestroyFail",
   PlayerChangeNodeFailNoEligibleNode = "PlayerChangeNodeFailNoEligibleNode",
-  PlayerChangeNodeFail = "PlayerChangeNodeFail"
+  PlayerChangeNodeFail = "PlayerChangeNodeFail",
 }
 
 export enum DestroyReasons {
@@ -718,12 +764,12 @@ export enum DestroyReasons {
   DisconnectAllNodes = "DisconnectAllNodes",
   ReconnectAllNodes = "ReconnectAllNodes",
   TrackErrorMaxTracksErroredPerTime = "TrackErrorMaxTracksErroredPerTime",
-  TrackStuckMaxTracksErroredPerTime = "TrackStuckMaxTracksErroredPerTime"
+  TrackStuckMaxTracksErroredPerTime = "TrackStuckMaxTracksErroredPerTime",
 }
 
 export enum DisconnectReasons {
   Disconnected = "Disconnected",
-  DisconnectAllNodes = "DisconnectAllNodes"
+  DisconnectAllNodes = "DisconnectAllNodes",
 }
 
 export const validSponsorBlocks = [
@@ -734,7 +780,7 @@ export const validSponsorBlocks = [
   "outro",
   "preview",
   "music_offtopic",
-  "filler"
+  "filler",
 ];
 
 export const audioOutputsData = {
@@ -742,26 +788,26 @@ export const audioOutputsData = {
     leftToLeft: 0.5,
     leftToRight: 0.5,
     rightToLeft: 0.5,
-    rightToRight: 0.5
+    rightToRight: 0.5,
   },
   stereo: {
     leftToLeft: 1,
     leftToRight: 0,
     rightToLeft: 0,
-    rightToRight: 1
+    rightToRight: 1,
   },
   left: {
     leftToLeft: 1,
     leftToRight: 0,
     rightToLeft: 1,
-    rightToRight: 0
+    rightToRight: 0,
   },
   right: {
     leftToLeft: 0,
     leftToRight: 1,
     rightToLeft: 0,
-    rightToRight: 1
-  }
+    rightToRight: 1,
+  },
 };
 
 export const EQList = {
@@ -775,8 +821,8 @@ export const EQList = {
     { band: 6, gain: -0.16875 },
     { band: 7, gain: 0.08625 },
     { band: 8, gain: 0.13125 },
-    { band: 9, gain: 0.16875 }
-  ]
+    { band: 9, gain: 0.16875 },
+  ],
 };
 
 export const DefaultSources: Record<string, string> = {
@@ -858,16 +904,19 @@ export const DefaultSources: Record<string, string> = {
   amzsearch: "amzsearch",
   admsearch: "admsearch",
   gnsearch: "gnsearch",
-  szsearch: "szsearch"
+  szsearch: "szsearch",
 };
 export const SourceLinksRegexes = {
-  YoutubeRegex: /https?:\/\/?(?:www\.)?(?:(m|www)\.)?(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|shorts|playlist\?|watch\?v=|watch\?.+(?:&|&#38;);v=))([a-zA-Z0-9\-_]{11})?(?:(?:\?|&|&#38;)index=((?:\d){1,3}))?(?:(?:\?|&|&#38;)?list=([a-zA-Z\-_0-9]{34}))?(?:\S+)?/,
-  YoutubeMusicRegex: /https?:\/\/?(?:www\.)?(?:(music|m|www)\.)?(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|shorts|playlist\?|watch\?v=|watch\?.+(?:&|&#38;);v=))([a-zA-Z0-9\-_]{11})?(?:(?:\?|&|&#38;)index=((?:\d){1,3}))?(?:(?:\?|&|&#38;)?list=([a-zA-Z\-_0-9]{34}))?(?:\S+)?/,
+  YoutubeRegex:
+    /https?:\/\/?(?:www\.)?(?:(m|www)\.)?(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|shorts|playlist\?|watch\?v=|watch\?.+(?:&|&#38;);v=))([a-zA-Z0-9\-_]{11})?(?:(?:\?|&|&#38;)index=((?:\d){1,3}))?(?:(?:\?|&|&#38;)?list=([a-zA-Z\-_0-9]{34}))?(?:\S+)?/,
+  YoutubeMusicRegex:
+    /https?:\/\/?(?:www\.)?(?:(music|m|www)\.)?(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|shorts|playlist\?|watch\?v=|watch\?.+(?:&|&#38;);v=))([a-zA-Z0-9\-_]{11})?(?:(?:\?|&|&#38;)index=((?:\d){1,3}))?(?:(?:\?|&|&#38;)?list=([a-zA-Z\-_0-9]{34}))?(?:\S+)?/,
   SoundCloudRegex: /https?:\/\/(?:on\.)?soundcloud\.com\//,
   SoundCloudMobileRegex: /https?:\/\/(soundcloud\.app\.goo\.gl)\/(\S+)/,
   bandcamp: /https?:\/\/?(?:www\.)?([\d|\w]+)\.bandcamp\.com\/(\S+)/,
   TwitchTv: /https?:\/\/?(?:www\.)?twitch\.tv\/\w+/,
-  vimeo: /https?:\/\/(www\.)?vimeo.com\/(?:channels\/(?:\w+\/)?|groups\/([^/]*)\/videos\/|)(\d+)(?:|\/\?)/,
+  vimeo:
+    /https?:\/\/(www\.)?vimeo.com\/(?:channels\/(?:\w+\/)?|groups\/([^/]*)\/videos\/|)(\d+)(?:|\/\?)/,
   mp3Url: /(https?|ftp|file):\/\/(www.)?(.*?)\.(mp3)$/,
   m3uUrl: /(https?|ftp|file):\/\/(www.)?(.*?)\.(m3u)$/,
   m3u8Url: /(https?|ftp|file):\/\/(www.)?(.*?)\.(m3u8)$/,
@@ -875,32 +924,54 @@ export const SourceLinksRegexes = {
   m4aUrl: /(https?|ftp|file):\/\/(www.)?(.*?)\.(m4a)$/,
   wavUrl: /(https?|ftp|file):\/\/(www.)?(.*?)\.(wav)$/,
   aacpUrl: /(https?|ftp|file):\/\/(www.)?(.*?)\.(aacp)$/,
-  DeezerTrackRegex: /(https?:\/\/|)?(?:www\.)?deezer\.com\/(?:\w{2}\/)?track\/(\d+)/,
+  DeezerTrackRegex:
+    /(https?:\/\/|)?(?:www\.)?deezer\.com\/(?:\w{2}\/)?track\/(\d+)/,
   DeezerPageLinkRegex: /(https?:\/\/|)?(?:www\.)?deezer\.page\.link\/(\S+)/,
-  DeezerPlaylistRegex: /(https?:\/\/|)?(?:www\.)?deezer\.com\/(?:\w{2}\/)?playlist\/(\d+)/,
-  DeezerAlbumRegex: /(https?:\/\/|)?(?:www\.)?deezer\.com\/(?:\w{2}\/)?album\/(\d+)/,
-  DeezerArtistRegex: /(https?:\/\/|)?(?:www\.)?deezer\.com\/(?:\w{2}\/)?artist\/(\d+)/,
-  DeezerMixesRegex: /(https?:\/\/|)?(?:www\.)?deezer\.com\/(?:\w{2}\/)?mixes\/genre\/(\d+)/,
-  DeezerEpisodeRegex: /(https?:\/\/|)?(?:www\.)?deezer\.com\/(?:\w{2}\/)?episode\/(\d+)/,
-  AllDeezerRegexWithoutPageLink: /(https?:\/\/|)?(?:www\.)?deezer\.com\/(?:\w{2}\/)?(track|playlist|album|artist|mixes\/genre|episode)\/(\d+)/,
-  AllDeezerRegex: /((https?:\/\/|)?(?:www\.)?deezer\.com\/(?:\w{2}\/)?(track|playlist|album|artist|mixes\/genre|episode)\/(\d+)|(https?:\/\/|)?(?:www\.)?deezer\.page\.link\/(\S+))/,
-  SpotifySongRegex: /(https?:\/\/)(www\.)?open\.spotify\.com\/((?<region>[a-zA-Z-]+)\/)?(user\/(?<user>[a-zA-Z0-9-_]+)\/)?track\/(?<identifier>[a-zA-Z0-9-_]+)/,
-  SpotifyPlaylistRegex: /(https?:\/\/)(www\.)?open\.spotify\.com\/((?<region>[a-zA-Z-]+)\/)?(user\/(?<user>[a-zA-Z0-9-_]+)\/)?playlist\/(?<identifier>[a-zA-Z0-9-_]+)/,
-  SpotifyArtistRegex: /(https?:\/\/)(www\.)?open\.spotify\.com\/((?<region>[a-zA-Z-]+)\/)?(user\/(?<user>[a-zA-Z0-9-_]+)\/)?artist\/(?<identifier>[a-zA-Z0-9-_]+)/,
-  SpotifyEpisodeRegex: /(https?:\/\/)(www\.)?open\.spotify\.com\/((?<region>[a-zA-Z-]+)\/)?(user\/(?<user>[a-zA-Z0-9-_]+)\/)?episode\/(?<identifier>[a-zA-Z0-9-_]+)/,
-  SpotifyShowRegex: /(https?:\/\/)(www\.)?open\.spotify\.com\/((?<region>[a-zA-Z-]+)\/)?(user\/(?<user>[a-zA-Z0-9-_]+)\/)?show\/(?<identifier>[a-zA-Z0-9-_]+)/,
-  SpotifyAlbumRegex: /(https?:\/\/)(www\.)?open\.spotify\.com\/((?<region>[a-zA-Z-]+)\/)?(user\/(?<user>[a-zA-Z0-9-_]+)\/)?album\/(?<identifier>[a-zA-Z0-9-_]+)/,
-  AllSpotifyRegex: /(https?:\/\/)(www\.)?open\.spotify\.com\/((?<region>[a-zA-Z-]+)\/)?(user\/(?<user>[a-zA-Z0-9-_]+)\/)?(?<type>track|album|playlist|artist|episode|show)\/(?<identifier>[a-zA-Z0-9-_]+)/,
+  DeezerPlaylistRegex:
+    /(https?:\/\/|)?(?:www\.)?deezer\.com\/(?:\w{2}\/)?playlist\/(\d+)/,
+  DeezerAlbumRegex:
+    /(https?:\/\/|)?(?:www\.)?deezer\.com\/(?:\w{2}\/)?album\/(\d+)/,
+  DeezerArtistRegex:
+    /(https?:\/\/|)?(?:www\.)?deezer\.com\/(?:\w{2}\/)?artist\/(\d+)/,
+  DeezerMixesRegex:
+    /(https?:\/\/|)?(?:www\.)?deezer\.com\/(?:\w{2}\/)?mixes\/genre\/(\d+)/,
+  DeezerEpisodeRegex:
+    /(https?:\/\/|)?(?:www\.)?deezer\.com\/(?:\w{2}\/)?episode\/(\d+)/,
+  AllDeezerRegexWithoutPageLink:
+    /(https?:\/\/|)?(?:www\.)?deezer\.com\/(?:\w{2}\/)?(track|playlist|album|artist|mixes\/genre|episode)\/(\d+)/,
+  AllDeezerRegex:
+    /((https?:\/\/|)?(?:www\.)?deezer\.com\/(?:\w{2}\/)?(track|playlist|album|artist|mixes\/genre|episode)\/(\d+)|(https?:\/\/|)?(?:www\.)?deezer\.page\.link\/(\S+))/,
+  SpotifySongRegex:
+    /(https?:\/\/)(www\.)?open\.spotify\.com\/((?<region>[a-zA-Z-]+)\/)?(user\/(?<user>[a-zA-Z0-9-_]+)\/)?track\/(?<identifier>[a-zA-Z0-9-_]+)/,
+  SpotifyPlaylistRegex:
+    /(https?:\/\/)(www\.)?open\.spotify\.com\/((?<region>[a-zA-Z-]+)\/)?(user\/(?<user>[a-zA-Z0-9-_]+)\/)?playlist\/(?<identifier>[a-zA-Z0-9-_]+)/,
+  SpotifyArtistRegex:
+    /(https?:\/\/)(www\.)?open\.spotify\.com\/((?<region>[a-zA-Z-]+)\/)?(user\/(?<user>[a-zA-Z0-9-_]+)\/)?artist\/(?<identifier>[a-zA-Z0-9-_]+)/,
+  SpotifyEpisodeRegex:
+    /(https?:\/\/)(www\.)?open\.spotify\.com\/((?<region>[a-zA-Z-]+)\/)?(user\/(?<user>[a-zA-Z0-9-_]+)\/)?episode\/(?<identifier>[a-zA-Z0-9-_]+)/,
+  SpotifyShowRegex:
+    /(https?:\/\/)(www\.)?open\.spotify\.com\/((?<region>[a-zA-Z-]+)\/)?(user\/(?<user>[a-zA-Z0-9-_]+)\/)?show\/(?<identifier>[a-zA-Z0-9-_]+)/,
+  SpotifyAlbumRegex:
+    /(https?:\/\/)(www\.)?open\.spotify\.com\/((?<region>[a-zA-Z-]+)\/)?(user\/(?<user>[a-zA-Z0-9-_]+)\/)?album\/(?<identifier>[a-zA-Z0-9-_]+)/,
+  AllSpotifyRegex:
+    /(https?:\/\/)(www\.)?open\.spotify\.com\/((?<region>[a-zA-Z-]+)\/)?(user\/(?<user>[a-zA-Z0-9-_]+)\/)?(?<type>track|album|playlist|artist|episode|show)\/(?<identifier>[a-zA-Z0-9-_]+)/,
   appleMusic: /https?:\/\/?(?:www\.)?music\.apple\.com\/(\S+)/,
-  tidal: /https?:\/\/?(?:www\.)?(?:tidal|listen)\.tidal\.com\/(?<type>track|album|playlist|artist)\/(?<identifier>[a-zA-Z0-9-_]+)/,
-  jiosaavn: /(https?:\/\/)(www\.)?jiosaavn\.com\/(?<type>song|album|featured|artist)\/([a-zA-Z0-9-_/,]+)/,
-  PandoraTrackRegex: /^@?(?:https?:\/\/)?(?:www\.)?pandora\.com\/artist\/[\w-]+(?:\/[\w-]+)*\/(?<identifier>TR[A-Za-z0-9]+)(?:[?#].*)?$/,
-  PandoraAlbumRegex: /^@?(?:https?:\/\/)?(?:www\.)?pandora\.com\/artist\/[\w-]+(?:\/[\w-]+)*\/(?<identifier>AL[A-Za-z0-9]+)(?:[?#].*)?$/,
-  PandoraArtistRegex: /^@?(?:https?:\/\/)?(?:www\.)?pandora\.com\/artist\/[\w-]+\/(?<identifier>AR[A-Za-z0-9]+)(?:[?#].*)?$/,
-  PandoraPlaylistRegex: /^@?(?:https?:\/\/)?(?:www\.)?pandora\.com\/playlist\/(?<identifier>PL:[\d:]+)(?:[?#].*)?$/,
-  AllPandoraRegex: /^@?(?:https?:\/\/)?(?:www\.)?pandora\.com\/(?:playlist\/(?<playlistId>PL:[\d:]+)|artist\/[\w-]+(?:\/[\w-]+)*\/(?<identifier>(?:TR|AL|AR)[A-Za-z0-9]+))(?:[?#].*)?$/,
+  tidal:
+    /https?:\/\/?(?:www\.)?(?:tidal|listen)\.tidal\.com\/(?<type>track|album|playlist|artist)\/(?<identifier>[a-zA-Z0-9-_]+)/,
+  jiosaavn:
+    /(https?:\/\/)(www\.)?jiosaavn\.com\/(?<type>song|album|featured|artist)\/([a-zA-Z0-9-_/,]+)/,
+  PandoraTrackRegex:
+    /^@?(?:https?:\/\/)?(?:www\.)?pandora\.com\/artist\/[\w-]+(?:\/[\w-]+)*\/(?<identifier>TR[A-Za-z0-9]+)(?:[?#].*)?$/,
+  PandoraAlbumRegex:
+    /^@?(?:https?:\/\/)?(?:www\.)?pandora\.com\/artist\/[\w-]+(?:\/[\w-]+)*\/(?<identifier>AL[A-Za-z0-9]+)(?:[?#].*)?$/,
+  PandoraArtistRegex:
+    /^@?(?:https?:\/\/)?(?:www\.)?pandora\.com\/artist\/[\w-]+\/(?<identifier>AR[A-Za-z0-9]+)(?:[?#].*)?$/,
+  PandoraPlaylistRegex:
+    /^@?(?:https?:\/\/)?(?:www\.)?pandora\.com\/playlist\/(?<identifier>PL:[\d:]+)(?:[?#].*)?$/,
+  AllPandoraRegex:
+    /^@?(?:https?:\/\/)?(?:www\.)?pandora\.com\/(?:playlist\/(?<playlistId>PL:[\d:]+)|artist\/[\w-]+(?:\/[\w-]+)*\/(?<identifier>(?:TR|AL|AR)[A-Za-z0-9]+))(?:[?#].*)?$/,
   tiktok: /https:\/\/www\.tiktok\.com\//,
   mixcloud: /https:\/\/www\.mixcloud\.com\//,
   musicYandex: /https:\/\/music\.yandex\.ru\//,
-  radiohost: /https?:\/\/[^.\s]+\.radiohost\.de\/(\S+)/
+  radiohost: /https?:\/\/[^.\s]+\.radiohost\.de\/(\S+)/,
 };

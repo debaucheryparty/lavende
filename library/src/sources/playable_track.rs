@@ -1,6 +1,3 @@
-use std::sync::Arc;
-use async_trait::async_trait;
-use flume::{Receiver, Sender};
 use crate::{
     audio::{
         AudioFrame,
@@ -10,6 +7,9 @@ use crate::{
     config::player::PlayerConfig,
     sources::SourcePlugin,
 };
+use async_trait::async_trait;
+use flume::{Receiver, Sender};
+use std::sync::Arc;
 pub type DecoderOutput = (
     Receiver<AudioFrame>,
     Sender<DecoderCommand>,
@@ -39,7 +39,8 @@ pub trait PlayableTrack: Send + Sync + 'static {
         false
     }
     fn start_decoding(self: Arc<Self>, config: PlayerConfig) -> DecoderOutput {
-        let (tx, rx) = flume::bounded::<AudioFrame>((config.buffer_duration_ms / 20).max(200) as usize);
+        let (tx, rx) =
+            flume::bounded::<AudioFrame>((config.buffer_duration_ms / 20).max(200) as usize);
         let (cmd_tx, cmd_rx) = flume::unbounded::<DecoderCommand>();
         let (err_tx, err_rx) = flume::bounded::<String>(1);
         let supports_seek = self.supports_seek();

@@ -1,118 +1,118 @@
 pub mod reader {
-use std::io::{Read, Seek, SeekFrom};
-use symphonia::core::io::MediaSource;
-use crate::{
-    audio::source::{HttpSource, create_client},
-    common::types::AnyResult,
-};
-pub struct MixcloudReader {
-    inner: HttpSource,
-}
-const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
-impl MixcloudReader {
-    pub async fn new(url: &str, local_addr: Option<std::net::IpAddr>) -> AnyResult<Self> {
-        let client = create_client(USER_AGENT.to_owned(), local_addr, None, None)?;
-        let inner = HttpSource::new(client, url).await?;
-        Ok(Self { inner })
+    use crate::{
+        audio::source::{HttpSource, create_client},
+        common::types::AnyResult,
+    };
+    use std::io::{Read, Seek, SeekFrom};
+    use symphonia::core::io::MediaSource;
+    pub struct MixcloudReader {
+        inner: HttpSource,
     }
-}
-impl Read for MixcloudReader {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        self.inner.read(buf)
+    const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+    impl MixcloudReader {
+        pub async fn new(url: &str, local_addr: Option<std::net::IpAddr>) -> AnyResult<Self> {
+            let client = create_client(USER_AGENT.to_owned(), local_addr, None, None)?;
+            let inner = HttpSource::new(client, url).await?;
+            Ok(Self { inner })
+        }
     }
-}
-impl Seek for MixcloudReader {
-    fn seek(&mut self, pos: SeekFrom) -> std::io::Result<u64> {
-        self.inner.seek(pos)
+    impl Read for MixcloudReader {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            self.inner.read(buf)
+        }
     }
-}
-impl MediaSource for MixcloudReader {
-    fn is_seekable(&self) -> bool {
-        self.inner.is_seekable()
+    impl Seek for MixcloudReader {
+        fn seek(&mut self, pos: SeekFrom) -> std::io::Result<u64> {
+            self.inner.seek(pos)
+        }
     }
-    fn byte_len(&self) -> Option<u64> {
-        self.inner.byte_len()
-    }
-}
-}
-pub mod track {
-use std::sync::Arc;
-use async_trait::async_trait;
-use tracing::error;
-use crate::{
-    common::types::AudioFormat,
-    sources::playable_track::{PlayableTrack, ResolvedTrack},
-};
-pub struct MixcloudTrack {
-    pub client: Arc<reqwest::Client>,
-    pub hls_url: Option<String>,
-    pub stream_url: Option<String>,
-    pub uri: String,
-    pub local_addr: Option<std::net::IpAddr>,
-}
-#[async_trait]
-impl PlayableTrack for MixcloudTrack {
-    async fn resolve(&self) -> Result<ResolvedTrack, String> {
-        let (hls_url, stream_url) = if self.hls_url.is_some() || self.stream_url.is_some() {
-            (self.hls_url.clone(), self.stream_url.clone())
-        } else {
-            let (enc_hls, enc_url) = super::fetch_track_stream_info(&self.client, &self.uri)
-                .await
-                .unwrap_or((None, None));
-            (
-                enc_hls.map(|s| super::decrypt(&s)),
-                enc_url.map(|s| super::decrypt(&s)),
-            )
-        };
-        let local_addr = self.local_addr;
-        let uri = self.uri.clone();
-        if let Some(url) = hls_url {
-            crate::sources::youtube::hls::HlsReader::new(&url, local_addr, None, None, None)
-                .await
-                .map(|r| {
-                    ResolvedTrack::new(
-                        Box::new(r) as Box<dyn symphonia::core::io::MediaSource>,
-                        Some(AudioFormat::Aac),
-                    )
-                })
-                .map_err(|e| {
-                    error!("Mixcloud HlsReader failed to initialize: {e}");
-                    format!("Failed to init HLS reader: {e}")
-                })
-        } else if let Some(url) = stream_url {
-            let hint = std::path::Path::new(&url)
-                .extension()
-                .and_then(|s| s.to_str())
-                .map(AudioFormat::from_ext)
-                .or(Some(AudioFormat::Mp4));
-            super::reader::MixcloudReader::new(&url, local_addr)
-                .await
-                .map(|r| {
-                    ResolvedTrack::new(
-                        Box::new(r) as Box<dyn symphonia::core::io::MediaSource>,
-                        hint,
-                    )
-                })
-                .map_err(|e| {
-                    error!("MixcloudReader failed to initialize: {e}");
-                    format!("Failed to init reader: {e}")
-                })
-        } else {
-            error!("Mixcloud: no stream URL available for {uri}");
-            Err(format!("No stream URL available for {uri}"))
+    impl MediaSource for MixcloudReader {
+        fn is_seekable(&self) -> bool {
+            self.inner.is_seekable()
+        }
+        fn byte_len(&self) -> Option<u64> {
+            self.inner.byte_len()
         }
     }
 }
+pub mod track {
+    use crate::{
+        common::types::AudioFormat,
+        sources::playable_track::{PlayableTrack, ResolvedTrack},
+    };
+    use async_trait::async_trait;
+    use std::sync::Arc;
+    use tracing::error;
+    pub struct MixcloudTrack {
+        pub client: Arc<reqwest::Client>,
+        pub hls_url: Option<String>,
+        pub stream_url: Option<String>,
+        pub uri: String,
+        pub local_addr: Option<std::net::IpAddr>,
+    }
+    #[async_trait]
+    impl PlayableTrack for MixcloudTrack {
+        async fn resolve(&self) -> Result<ResolvedTrack, String> {
+            let (hls_url, stream_url) = if self.hls_url.is_some() || self.stream_url.is_some() {
+                (self.hls_url.clone(), self.stream_url.clone())
+            } else {
+                let (enc_hls, enc_url) = super::fetch_track_stream_info(&self.client, &self.uri)
+                    .await
+                    .unwrap_or((None, None));
+                (
+                    enc_hls.map(|s| super::decrypt(&s)),
+                    enc_url.map(|s| super::decrypt(&s)),
+                )
+            };
+            let local_addr = self.local_addr;
+            let uri = self.uri.clone();
+            if let Some(url) = hls_url {
+                crate::sources::youtube::hls::HlsReader::new(&url, local_addr, None, None, None)
+                    .await
+                    .map(|r| {
+                        ResolvedTrack::new(
+                            Box::new(r) as Box<dyn symphonia::core::io::MediaSource>,
+                            Some(AudioFormat::Aac),
+                        )
+                    })
+                    .map_err(|e| {
+                        error!("Mixcloud HlsReader failed to initialize: {e}");
+                        format!("Failed to init HLS reader: {e}")
+                    })
+            } else if let Some(url) = stream_url {
+                let hint = std::path::Path::new(&url)
+                    .extension()
+                    .and_then(|s| s.to_str())
+                    .map(AudioFormat::from_ext)
+                    .or(Some(AudioFormat::Mp4));
+                super::reader::MixcloudReader::new(&url, local_addr)
+                    .await
+                    .map(|r| {
+                        ResolvedTrack::new(
+                            Box::new(r) as Box<dyn symphonia::core::io::MediaSource>,
+                            hint,
+                        )
+                    })
+                    .map_err(|e| {
+                        error!("MixcloudReader failed to initialize: {e}");
+                        format!("Failed to init reader: {e}")
+                    })
+            } else {
+                error!("Mixcloud: no stream URL available for {uri}");
+                Err(format!("No stream URL available for {uri}"))
+            }
+        }
+    }
 }
-use std::sync::{Arc, OnceLock};
-use async_trait::async_trait;
-use base64::{Engine as _, engine::general_purpose};
-use regex::Regex;
-use serde_json::{Value, json};
 use crate::{
     protocol::tracks::{LoadResult, PlaylistData, PlaylistInfo, Track, TrackInfo},
     sources::{SourcePlugin, playable_track::BoxedTrack},
 };
+use async_trait::async_trait;
+use base64::{Engine as _, engine::general_purpose};
+use regex::Regex;
+use serde_json::{Value, json};
+use std::sync::{Arc, OnceLock};
 const DECRYPTION_KEY: &[u8] = b"IFYOUWANTTHEARTISTSTOGETPAIDDONOTDOWNLOADFROMMIXCLOUD";
 const GRAPHQL_URL: &str = "https://app.mixcloud.com/graphql";
 fn track_url_re() -> &'static Regex {

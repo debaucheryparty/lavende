@@ -1,7 +1,7 @@
-use std::sync::Arc;
 use napi::threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode};
 use napi_derive::napi;
 use serde_json::Value;
+use std::sync::Arc;
 
 #[napi]
 pub struct Player {
@@ -35,7 +35,8 @@ impl Player {
             }
         };
 
-        self.inner.play(user_id, channel_id, session_id, token, endpoint, url, cb)
+        self.inner
+            .play(user_id, channel_id, session_id, token, endpoint, url, cb)
             .await
             .map_err(|e| napi::Error::from_reason(e))
     }
@@ -77,6 +78,9 @@ impl Player {
 
     #[napi]
     pub async fn set_filters(&self, filters_json: String) -> napi::Result<()> {
-        self.inner.set_filters(filters_json).await.map_err(|e| napi::Error::from_reason(e))
+        self.inner
+            .set_filters(filters_json)
+            .await
+            .map_err(|e| napi::Error::from_reason(e))
     }
 }

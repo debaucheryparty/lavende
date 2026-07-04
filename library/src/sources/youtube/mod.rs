@@ -1,1209 +1,1225 @@
 pub mod utils {
-use std::sync::Arc;
-use symphonia::core::io::MediaSource;
-use crate::{
-    common::types::AudioFormat,
-    sources::{
-        http::reader::HttpReader,
-        youtube::{cipher::YouTubeCipherManager, hls::HlsReader, reader::YoutubeReader},
-    },
-};
-pub const DEFAULT_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36";
-pub fn detect_audio_kind(url: &str, is_hls: bool) -> AudioFormat {
-    if is_hls {
-        AudioFormat::Aac
-    } else {
-        AudioFormat::from_url(url)
+    use crate::{
+        common::types::AudioFormat,
+        sources::{
+            http::reader::HttpReader,
+            youtube::{cipher::YouTubeCipherManager, hls::HlsReader, reader::YoutubeReader},
+        },
+    };
+    use std::sync::Arc;
+    use symphonia::core::io::MediaSource;
+    pub const DEFAULT_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36";
+    pub fn detect_audio_kind(url: &str, is_hls: bool) -> AudioFormat {
+        if is_hls {
+            AudioFormat::Aac
+        } else {
+            AudioFormat::from_url(url)
+        }
     }
-}
-pub async fn create_reader(
-    url: &str,
-    client_name: &str,
-    local_addr: Option<std::net::IpAddr>,
-    proxy: Option<crate::config::HttpProxyConfig>,
-    cipher_manager: Arc<YouTubeCipherManager>,
-) -> AnyResult<Box<dyn MediaSource>> {
-    if url.contains(".m3u8") || url.contains("/playlist") {
-        Ok(Box::new(
-            HlsReader::new(url, local_addr, Some(cipher_manager), None, proxy).await?,
-        ))
-    } else if client_name == "TV" {
-        Ok(Box::new(YoutubeReader::new(url, local_addr, proxy).await?))
-    } else {
-        Ok(Box::new(HttpReader::new(url, local_addr, proxy).await?))
+    pub async fn create_reader(
+        url: &str,
+        client_name: &str,
+        local_addr: Option<std::net::IpAddr>,
+        proxy: Option<crate::config::HttpProxyConfig>,
+        cipher_manager: Arc<YouTubeCipherManager>,
+    ) -> AnyResult<Box<dyn MediaSource>> {
+        if url.contains(".m3u8") || url.contains("/playlist") {
+            Ok(Box::new(
+                HlsReader::new(url, local_addr, Some(cipher_manager), None, proxy).await?,
+            ))
+        } else if client_name == "TV" {
+            Ok(Box::new(YoutubeReader::new(url, local_addr, proxy).await?))
+        } else {
+            Ok(Box::new(HttpReader::new(url, local_addr, proxy).await?))
+        }
     }
-}
-type AnyResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
-pub fn parse_playability_status(body: &serde_json::Value) -> Result<(), String> {
-    let playability = body
-        .get("playabilityStatus")
-        .and_then(|p| p.get("status"))
-        .and_then(|s| s.as_str())
-        .unwrap_or("UNKNOWN");
-    if playability == "OK" {
-        return Ok(());
-    }
-    let p = body.get("playabilityStatus");
-    let reason = p
-        .and_then(|p| p.get("reason"))
-        .and_then(|r| r.as_str())
-        .unwrap_or("unknown reason");
-    match playability {
-        "ERROR" => Err(reason.to_string()),
-        "UNPLAYABLE" => {
-            if reason == "unknown reason" {
-                Err("This video is unplayable.".to_string())
-            } else {
+    type AnyResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
+    pub fn parse_playability_status(body: &serde_json::Value) -> Result<(), String> {
+        let playability = body
+            .get("playabilityStatus")
+            .and_then(|p| p.get("status"))
+            .and_then(|s| s.as_str())
+            .unwrap_or("UNKNOWN");
+        if playability == "OK" {
+            return Ok(());
+        }
+        let p = body.get("playabilityStatus");
+        let reason = p
+            .and_then(|p| p.get("reason"))
+            .and_then(|r| r.as_str())
+            .unwrap_or("unknown reason");
+        match playability {
+            "ERROR" => Err(reason.to_string()),
+            "UNPLAYABLE" => {
+                if reason == "unknown reason" {
+                    Err("This video is unplayable.".to_string())
+                } else {
+                    Err(reason.to_string())
+                }
+            }
+            "LOGIN_REQUIRED" => {
+                if reason.contains("This video is private") {
+                    Err("This is a private video.".to_string())
+                } else if reason.contains("This video may be inappropriate for some users") {
+                    Err("This video requires age verification.".to_string())
+                } else {
+                    Err("This video requires login.".to_string())
+                }
+            }
+            "CONTENT_CHECK_REQUIRED" => Err(reason.to_string()),
+            "LIVE_STREAM_OFFLINE" => {
+                if let Some(err_screen) = p.and_then(|p| p.get("errorScreen"))
+                    && err_screen.get("ypcTrailerRenderer").is_some()
+                {
+                    return Err("This trailer cannot be loaded.".to_string());
+                }
                 Err(reason.to_string())
             }
+            _ => Err("This video cannot be viewed anonymously.".to_string()),
         }
-        "LOGIN_REQUIRED" => {
-            if reason.contains("This video is private") {
-                Err("This is a private video.".to_string())
-            } else if reason.contains("This video may be inappropriate for some users") {
-                Err("This video requires age verification.".to_string())
-            } else {
-                Err("This video requires login.".to_string())
-            }
-        }
-        "CONTENT_CHECK_REQUIRED" => Err(reason.to_string()),
-        "LIVE_STREAM_OFFLINE" => {
-            if let Some(err_screen) = p.and_then(|p| p.get("errorScreen"))
-                && err_screen.get("ypcTrailerRenderer").is_some()
-            {
-                return Err("This trailer cannot be loaded.".to_string());
-            }
-            Err(reason.to_string())
-        }
-        _ => Err("This video cannot be viewed anonymously.".to_string()),
     }
-}
 }
 pub mod ua {
-pub mod yt_ua {
-    pub const IOS: &str =
-        "com.google.ios.youtube/21.02.1 (iPhone16,2; U; CPU iOS 18_2 like Mac OS X;)";
-    pub const ANDROID: &str = "com.google.android.youtube/20.01.35 (Linux; U; Android 14) identity";
-    pub const ANDROID_VR: &str = "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro Build/UQ1A.240205.002; wv) \
+    pub mod yt_ua {
+        pub const IOS: &str =
+            "com.google.ios.youtube/21.02.1 (iPhone16,2; U; CPU iOS 18_2 like Mac OS X;)";
+        pub const ANDROID: &str =
+            "com.google.android.youtube/20.01.35 (Linux; U; Android 14) identity";
+        pub const ANDROID_VR: &str = "Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro Build/UQ1A.240205.002; wv) \
          AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 \
          Chrome/121.0.6167.164 Mobile Safari/537.36 YouTubeVR/1.42.15 (gzip)";
-    pub const TVHTML5: &str = "Mozilla/5.0 (Fuchsia) AppleWebKit/537.36 (KHTML, like Gecko) \
+        pub const TVHTML5: &str = "Mozilla/5.0 (Fuchsia) AppleWebKit/537.36 (KHTML, like Gecko) \
          Chrome/140.0.0.0 Safari/537.36 CrKey/1.56.500000";
-    pub const MWEB: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_2 like Mac OS X) \
+        pub const MWEB: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_2 like Mac OS X) \
          AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
-    pub const WEB_EMBEDDED: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
+        pub const WEB_EMBEDDED: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
          (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36";
-    pub const TVHTML5_SIMPLY: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
+        pub const TVHTML5_SIMPLY: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
          (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36";
-    pub const TVHTML5_UNPLUGGED: &str = "Mozilla/5.0 (Linux armeabi-v7a; Android 7.1.2; Fire OS 6.0) Cobalt/22.lts.3.306369-gold (unlike Gecko) v8/8.8.278.8-jit gles Starboard/13, Amazon_ATV_mediatek8695_2019/NS6294 (Amazon, AFTMM, Wireless) com.amazon.firetv.youtube/22.3.r2.v66.0";
-}
-pub fn get_youtube_ua(url: &str) -> Option<&'static str> {
-    if !(url.contains("googlevideo.com") || url.contains("youtube.com")) {
-        return None;
+        pub const TVHTML5_UNPLUGGED: &str = "Mozilla/5.0 (Linux armeabi-v7a; Android 7.1.2; Fire OS 6.0) Cobalt/22.lts.3.306369-gold (unlike Gecko) v8/8.8.278.8-jit gles Starboard/13, Amazon_ATV_mediatek8695_2019/NS6294 (Amazon, AFTMM, Wireless) com.amazon.firetv.youtube/22.3.r2.v66.0";
     }
-    extract_param(url, "c=").and_then(|client| match client {
-        "IOS" => Some(yt_ua::IOS),
-        "ANDROID" => Some(yt_ua::ANDROID),
-        "ANDROID_VR" => Some(yt_ua::ANDROID_VR),
-        "TVHTML5" => Some(yt_ua::TVHTML5),
-        "MWEB" => Some(yt_ua::MWEB),
-        "WEB_EMBEDDED_PLAYER" => Some(yt_ua::WEB_EMBEDDED),
-        "TVHTML5_SIMPLY" => Some(yt_ua::TVHTML5_SIMPLY),
-        "TVHTML5_UNPLUGGED" => Some(yt_ua::TVHTML5_UNPLUGGED),
-        _ => None,
-    })
-}
-fn extract_param<'a>(url: &'a str, key: &str) -> Option<&'a str> {
-    let query_start = url.find('?')?;
-    let query = &url[query_start + 1..];
-    for part in query.split('&') {
-        if let Some(val) = part.strip_prefix(key) {
-            return Some(val.split('#').next().unwrap_or(val));
+    pub fn get_youtube_ua(url: &str) -> Option<&'static str> {
+        if !(url.contains("googlevideo.com") || url.contains("youtube.com")) {
+            return None;
         }
+        extract_param(url, "c=").and_then(|client| match client {
+            "IOS" => Some(yt_ua::IOS),
+            "ANDROID" => Some(yt_ua::ANDROID),
+            "ANDROID_VR" => Some(yt_ua::ANDROID_VR),
+            "TVHTML5" => Some(yt_ua::TVHTML5),
+            "MWEB" => Some(yt_ua::MWEB),
+            "WEB_EMBEDDED_PLAYER" => Some(yt_ua::WEB_EMBEDDED),
+            "TVHTML5_SIMPLY" => Some(yt_ua::TVHTML5_SIMPLY),
+            "TVHTML5_UNPLUGGED" => Some(yt_ua::TVHTML5_UNPLUGGED),
+            _ => None,
+        })
     }
-    None
-}
+    fn extract_param<'a>(url: &'a str, key: &str) -> Option<&'a str> {
+        let query_start = url.find('?')?;
+        let query = &url[query_start + 1..];
+        for part in query.split('&') {
+            if let Some(val) = part.strip_prefix(key) {
+                return Some(val.split('#').next().unwrap_or(val));
+            }
+        }
+        None
+    }
 }
 pub mod oauth {
-use std::time::{SystemTime, UNIX_EPOCH};
-use serde_json::{Value, json};
-use tokio::sync::RwLock;
-use uuid::Uuid;
-use crate::common::types::AnyResult;
-const CLIENT_ID: &str = "861556708454-d6dlm3lh05idd8npek18k6be8ba3oc68.apps.googleusercontent.com";
-const CLIENT_SECRET: &str = "SboVhoG9s0rNafixCSGGKXAT";
-const SCOPES: &str = "http://gdata.youtube.com https://www.googleapis.com/auth/youtube";
-pub struct YouTubeOAuth {
-    refresh_tokens: RwLock<Vec<String>>,
-    current_token_index: RwLock<usize>,
-    access_token: RwLock<Option<String>>,
-    token_expiry: RwLock<u64>,
-    client: reqwest::Client,
-}
-impl YouTubeOAuth {
-    pub fn new(refresh_tokens: Vec<String>) -> Self {
-        Self {
-            refresh_tokens: RwLock::new(refresh_tokens),
-            current_token_index: RwLock::new(0),
-            access_token: RwLock::new(None),
-            token_expiry: RwLock::new(0),
-            client: reqwest::Client::new(),
-        }
+    use crate::common::types::AnyResult;
+    use serde_json::{Value, json};
+    use std::time::{SystemTime, UNIX_EPOCH};
+    use tokio::sync::RwLock;
+    use uuid::Uuid;
+    const CLIENT_ID: &str =
+        "861556708454-d6dlm3lh05idd8npek18k6be8ba3oc68.apps.googleusercontent.com";
+    const CLIENT_SECRET: &str = "SboVhoG9s0rNafixCSGGKXAT";
+    const SCOPES: &str = "http://gdata.youtube.com https://www.googleapis.com/auth/youtube";
+    pub struct YouTubeOAuth {
+        refresh_tokens: RwLock<Vec<String>>,
+        current_token_index: RwLock<usize>,
+        access_token: RwLock<Option<String>>,
+        token_expiry: RwLock<u64>,
+        client: reqwest::Client,
     }
-    pub async fn initialize_access_token(self: std::sync::Arc<Self>) {
-        if !self.refresh_tokens.read().await.is_empty() {
-            return;
-        }
-        match self.fetch_device_code().await {
-            Ok(response) => {
-                let verification_url = response["verification_url"].as_str().unwrap_or_default();
-                let user_code = response["user_code"].as_str().unwrap_or_default();
-                let device_code = response["device_code"]
-                    .as_str()
-                    .unwrap_or_default()
-                    .to_string();
-                let interval = response["interval"].as_u64().unwrap_or(5);
-                let inner_width = 60;
-                let top_border = format!("  ┌{}┐", "─".repeat(inner_width));
-                let sep_border = format!("  ├{}┤", "─".repeat(inner_width));
-                let bot_border = format!("  └{}┘", "─".repeat(inner_width));
-                let warning = "!!! USE A BURNER ACCOUNT FOR YOUTUBE OAUTH !!!";
-                let warning_pad = inner_width.saturating_sub(warning.len());
-                let warning_left = warning_pad / 2;
-                let warning_right = warning_pad - warning_left;
-                crate::log_println!("\n\x1b[1;33m{}\x1b[0m", top_border);
-                crate::log_println!(
-                    "\x1b[1;33m  │\x1b[0m{:left$}\x1b[1;31m{}\x1b[0m{:right$}\x1b[1;33m│\x1b[0m",
-                    "",
-                    warning,
-                    "",
-                    left = warning_left,
-                    right = warning_right
-                );
-                crate::log_println!("\x1b[1;33m{}\x1b[0m", sep_border);
-                let s1_prefix = " 1. Visit: ";
-                let s1_padding =
-                    inner_width.saturating_sub(s1_prefix.len() + verification_url.len());
-                crate::log_println!(
-                    "\x1b[1;33m  │\x1b[0m\x1b[1;36m{}\x1b[0m\x1b[4;34m{}\x1b[0m{:pad$}\x1b[1;33m│\x1b[0m",
-                    s1_prefix,
-                    verification_url,
-                    "",
-                    pad = s1_padding
-                );
-                let s2_prefix = " 2. Enter code: ";
-                let s2_code = format!(" {} ", user_code);
-                let s2_padding = inner_width.saturating_sub(s2_prefix.len() + s2_code.len());
-                crate::log_println!(
-                    "\x1b[1;33m  │\x1b[0m\x1b[1;36m{}\x1b[0m\x1b[1;42;30m{}\x1b[0m{:pad$}\x1b[1;33m│\x1b[0m",
-                    s2_prefix,
-                    s2_code,
-                    "",
-                    pad = s2_padding
-                );
-                crate::log_println!("\x1b[1;33m{}\x1b[0m\n", bot_border);
-                let oauth = self.clone();
-                tokio::spawn(async move {
-                    oauth.poll_for_token(device_code, interval).await;
-                });
-            }
-            Err(e) => {
-                tracing::error!("Failed to fetch YouTube device code: {}", e);
+    impl YouTubeOAuth {
+        pub fn new(refresh_tokens: Vec<String>) -> Self {
+            Self {
+                refresh_tokens: RwLock::new(refresh_tokens),
+                current_token_index: RwLock::new(0),
+                access_token: RwLock::new(None),
+                token_expiry: RwLock::new(0),
+                client: reqwest::Client::new(),
             }
         }
-    }
-    async fn fetch_device_code(&self) -> AnyResult<Value> {
-        let res = self
-            .client
-            .post("https://www.youtube.com/o/oauth2/device/code")
-            .json(&json!({
-                "client_id": CLIENT_ID,
-                "scope": SCOPES,
-                "device_id": Uuid::new_v4().to_string().replace("-", ""),
-                "device_model": "ytlr::"
-            }))
-            .send()
-            .await?;
-        Ok(res.json().await?)
-    }
-    async fn poll_for_token(&self, device_code: String, interval: u64) {
-        let mut interval_timer = tokio::time::interval(std::time::Duration::from_secs(interval));
-        loop {
-            interval_timer.tick().await;
-            match self
-                .fetch_refresh_token_from_device_code(&device_code)
-                .await
-            {
+        pub async fn initialize_access_token(self: std::sync::Arc<Self>) {
+            if !self.refresh_tokens.read().await.is_empty() {
+                return;
+            }
+            match self.fetch_device_code().await {
                 Ok(response) => {
-                    if let Some(error) = response["error"].as_str() {
-                        match error {
-                            "authorization_pending" => continue,
-                            "slow_down" => {
-                                interval_timer = tokio::time::interval(
-                                    std::time::Duration::from_secs(interval + 5),
-                                );
-                                continue;
-                            }
-                            "expired_token" => {
-                                tracing::error!(
-                                    "OAUTH INTEGRATION: The device token has expired. OAuth integration has been canceled."
-                                );
-                                break;
-                            }
-                            "access_denied" => {
-                                tracing::error!(
-                                    "OAUTH INTEGRATION: Account linking was denied. OAuth integration has been canceled."
-                                );
-                                break;
-                            }
-                            _ => {
-                                tracing::error!("Unhandled OAuth2 error: {}", error);
-                                break;
+                    let verification_url =
+                        response["verification_url"].as_str().unwrap_or_default();
+                    let user_code = response["user_code"].as_str().unwrap_or_default();
+                    let device_code = response["device_code"]
+                        .as_str()
+                        .unwrap_or_default()
+                        .to_string();
+                    let interval = response["interval"].as_u64().unwrap_or(5);
+                    let inner_width = 60;
+                    let top_border = format!("  ┌{}┐", "─".repeat(inner_width));
+                    let sep_border = format!("  ├{}┤", "─".repeat(inner_width));
+                    let bot_border = format!("  └{}┘", "─".repeat(inner_width));
+                    let warning = "!!! USE A BURNER ACCOUNT FOR YOUTUBE OAUTH !!!";
+                    let warning_pad = inner_width.saturating_sub(warning.len());
+                    let warning_left = warning_pad / 2;
+                    let warning_right = warning_pad - warning_left;
+                    crate::log_println!("\n\x1b[1;33m{}\x1b[0m", top_border);
+                    crate::log_println!(
+                        "\x1b[1;33m  │\x1b[0m{:left$}\x1b[1;31m{}\x1b[0m{:right$}\x1b[1;33m│\x1b[0m",
+                        "",
+                        warning,
+                        "",
+                        left = warning_left,
+                        right = warning_right
+                    );
+                    crate::log_println!("\x1b[1;33m{}\x1b[0m", sep_border);
+                    let s1_prefix = " 1. Visit: ";
+                    let s1_padding =
+                        inner_width.saturating_sub(s1_prefix.len() + verification_url.len());
+                    crate::log_println!(
+                        "\x1b[1;33m  │\x1b[0m\x1b[1;36m{}\x1b[0m\x1b[4;34m{}\x1b[0m{:pad$}\x1b[1;33m│\x1b[0m",
+                        s1_prefix,
+                        verification_url,
+                        "",
+                        pad = s1_padding
+                    );
+                    let s2_prefix = " 2. Enter code: ";
+                    let s2_code = format!(" {} ", user_code);
+                    let s2_padding = inner_width.saturating_sub(s2_prefix.len() + s2_code.len());
+                    crate::log_println!(
+                        "\x1b[1;33m  │\x1b[0m\x1b[1;36m{}\x1b[0m\x1b[1;42;30m{}\x1b[0m{:pad$}\x1b[1;33m│\x1b[0m",
+                        s2_prefix,
+                        s2_code,
+                        "",
+                        pad = s2_padding
+                    );
+                    crate::log_println!("\x1b[1;33m{}\x1b[0m\n", bot_border);
+                    let oauth = self.clone();
+                    tokio::spawn(async move {
+                        oauth.poll_for_token(device_code, interval).await;
+                    });
+                }
+                Err(e) => {
+                    tracing::error!("Failed to fetch YouTube device code: {}", e);
+                }
+            }
+        }
+        async fn fetch_device_code(&self) -> AnyResult<Value> {
+            let res = self
+                .client
+                .post("https://www.youtube.com/o/oauth2/device/code")
+                .json(&json!({
+                    "client_id": CLIENT_ID,
+                    "scope": SCOPES,
+                    "device_id": Uuid::new_v4().to_string().replace("-", ""),
+                    "device_model": "ytlr::"
+                }))
+                .send()
+                .await?;
+            Ok(res.json().await?)
+        }
+        async fn poll_for_token(&self, device_code: String, interval: u64) {
+            let mut interval_timer =
+                tokio::time::interval(std::time::Duration::from_secs(interval));
+            loop {
+                interval_timer.tick().await;
+                match self
+                    .fetch_refresh_token_from_device_code(&device_code)
+                    .await
+                {
+                    Ok(response) => {
+                        if let Some(error) = response["error"].as_str() {
+                            match error {
+                                "authorization_pending" => continue,
+                                "slow_down" => {
+                                    interval_timer = tokio::time::interval(
+                                        std::time::Duration::from_secs(interval + 5),
+                                    );
+                                    continue;
+                                }
+                                "expired_token" => {
+                                    tracing::error!(
+                                        "OAUTH INTEGRATION: The device token has expired. OAuth integration has been canceled."
+                                    );
+                                    break;
+                                }
+                                "access_denied" => {
+                                    tracing::error!(
+                                        "OAUTH INTEGRATION: Account linking was denied. OAuth integration has been canceled."
+                                    );
+                                    break;
+                                }
+                                _ => {
+                                    tracing::error!("Unhandled OAuth2 error: {}", error);
+                                    break;
+                                }
                             }
                         }
+                        if let Some(refresh_token) = response["refresh_token"].as_str() {
+                            let mut tokens = self.refresh_tokens.write().await;
+                            tokens.push(refresh_token.to_string());
+                            crate::log_println!(
+                                "\x1b[1;32mOAUTH INTEGRATION: Token retrieved successfully!\x1b[0m"
+                            );
+                            crate::log_println!(
+                                "\x1b[1;32mRefresh token:\x1b[0m {}",
+                                refresh_token
+                            );
+                            break;
+                        }
                     }
-                    if let Some(refresh_token) = response["refresh_token"].as_str() {
-                        let mut tokens = self.refresh_tokens.write().await;
-                        tokens.push(refresh_token.to_string());
+                    Err(e) => {
                         crate::log_println!(
-                            "\x1b[1;32mOAUTH INTEGRATION: Token retrieved successfully!\x1b[0m"
+                            "\x1b[1;31mFailed to fetch YouTube OAuth2 token:\x1b[0m {}",
+                            e
                         );
-                        crate::log_println!("\x1b[1;32mRefresh token:\x1b[0m {}", refresh_token);
                         break;
                     }
                 }
+            }
+        }
+        async fn fetch_refresh_token_from_device_code(
+            &self,
+            device_code: &str,
+        ) -> AnyResult<Value> {
+            let res = self
+                .client
+                .post("https://www.youtube.com/o/oauth2/token")
+                .json(&json!({
+                    "client_id": CLIENT_ID,
+                    "client_secret": CLIENT_SECRET,
+                    "code": device_code,
+                    "grant_type": "http://oauth.net/grant_type/device/1.0"
+                }))
+                .send()
+                .await?;
+            Ok(res.json().await?)
+        }
+        pub async fn get_access_token(&self, idx: usize) -> Option<String> {
+            let tokens = self.refresh_tokens.read().await;
+            let max_tokens = tokens.len();
+            if max_tokens == 0 {
+                return None;
+            }
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
+            {
+                let expiry = self.token_expiry.read().await;
+                let token = self.access_token.read().await;
+                if let Some(t) = token.as_ref()
+                    && now < *expiry
+                {
+                    return Some(t.clone());
+                }
+            }
+            let refresh_token = &tokens[idx % max_tokens];
+            if refresh_token.is_empty() {
+                return None;
+            }
+            match self.refresh_token_request(refresh_token).await {
+                Ok((new_token, expires_in)) => {
+                    let mut token_store = self.access_token.write().await;
+                    let mut expiry_store = self.token_expiry.write().await;
+                    *token_store = Some(new_token.clone());
+                    *expiry_store = now + expires_in - 30;
+                    Some(new_token)
+                }
                 Err(e) => {
-                    crate::log_println!(
-                        "\x1b[1;31mFailed to fetch YouTube OAuth2 token:\x1b[0m {}",
+                    tracing::error!(
+                        "Failed to refresh YouTube token for index {}: {}",
+                        idx % max_tokens,
                         e
                     );
-                    break;
+                    None
                 }
             }
         }
-    }
-    async fn fetch_refresh_token_from_device_code(&self, device_code: &str) -> AnyResult<Value> {
-        let res = self
-            .client
-            .post("https://www.youtube.com/o/oauth2/token")
-            .json(&json!({
-                "client_id": CLIENT_ID,
-                "client_secret": CLIENT_SECRET,
-                "code": device_code,
-                "grant_type": "http://oauth.net/grant_type/device/1.0"
-            }))
-            .send()
-            .await?;
-        Ok(res.json().await?)
-    }
-    pub async fn get_access_token(&self, idx: usize) -> Option<String> {
-        let tokens = self.refresh_tokens.read().await;
-        let max_tokens = tokens.len();
-        if max_tokens == 0 {
-            return None;
+        async fn refresh_token_request(&self, refresh_token: &str) -> AnyResult<(String, u64)> {
+            let res = self
+                .client
+                .post("https://www.youtube.com/o/oauth2/token")
+                .json(&json!({
+                    "client_id": CLIENT_ID,
+                    "client_secret": CLIENT_SECRET,
+                    "refresh_token": refresh_token,
+                    "grant_type": "refresh_token"
+                }))
+                .send()
+                .await?;
+            let status = res.status();
+            if status == 200 {
+                let body: Value = res.json().await?;
+                if let Some(access_token) = body.get("access_token").and_then(|t| t.as_str()) {
+                    let expires_in = body
+                        .get("expires_in")
+                        .and_then(|e| e.as_u64())
+                        .unwrap_or(3600);
+                    return Ok((access_token.to_string(), expires_in));
+                }
+            }
+            Err(format!("OAuth refresh failed with status: {}", status).into())
         }
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-        {
-            let expiry = self.token_expiry.read().await;
-            let token = self.access_token.read().await;
-            if let Some(t) = token.as_ref()
-                && now < *expiry
-            {
-                return Some(t.clone());
+        pub async fn get_auth_header(&self) -> Option<String> {
+            let tokens = self.refresh_tokens.read().await;
+            if tokens.is_empty() {
+                return None;
+            }
+            let num_tokens = tokens.len();
+            let idx = {
+                let mut current_idx = self.current_token_index.write().await;
+                let val = *current_idx;
+                *current_idx = (val + 1) % num_tokens;
+                val
+            };
+            drop(tokens);
+            self.get_access_token(idx)
+                .await
+                .map(|t| format!("Bearer {}", t))
+        }
+        pub async fn get_refresh_tokens(&self) -> Vec<String> {
+            self.refresh_tokens.read().await.clone()
+        }
+        pub async fn refresh_with_token(
+            &self,
+            refresh_token: &str,
+        ) -> AnyResult<serde_json::Value> {
+            let res = self
+                .client
+                .post("https://www.youtube.com/o/oauth2/token")
+                .json(&json!({
+                    "client_id": CLIENT_ID,
+                    "client_secret": CLIENT_SECRET,
+                    "refresh_token": refresh_token,
+                    "grant_type": "refresh_token"
+                }))
+                .send()
+                .await?;
+            let status = res.status();
+            let body: serde_json::Value = res.json().await?;
+            if status.is_success() {
+                Ok(body)
+            } else {
+                Err(format!("OAuth refresh failed: status={}, body={}", status, body).into())
             }
         }
-        let refresh_token = &tokens[idx % max_tokens];
-        if refresh_token.is_empty() {
-            return None;
-        }
-        match self.refresh_token_request(refresh_token).await {
-            Ok((new_token, expires_in)) => {
-                let mut token_store = self.access_token.write().await;
-                let mut expiry_store = self.token_expiry.write().await;
-                *token_store = Some(new_token.clone());
-                *expiry_store = now + expires_in - 30; 
-                Some(new_token)
-            }
-            Err(e) => {
-                tracing::error!(
-                    "Failed to refresh YouTube token for index {}: {}",
-                    idx % max_tokens,
-                    e
-                );
-                None
-            }
-        }
     }
-    async fn refresh_token_request(&self, refresh_token: &str) -> AnyResult<(String, u64)> {
-        let res = self
-            .client
-            .post("https://www.youtube.com/o/oauth2/token")
-            .json(&json!({
-                "client_id": CLIENT_ID,
-                "client_secret": CLIENT_SECRET,
-                "refresh_token": refresh_token,
-                "grant_type": "refresh_token"
-            }))
-            .send()
-            .await?;
-        let status = res.status();
-        if status == 200 {
-            let body: Value = res.json().await?;
-            if let Some(access_token) = body.get("access_token").and_then(|t| t.as_str()) {
-                let expires_in = body
-                    .get("expires_in")
-                    .and_then(|e| e.as_u64())
-                    .unwrap_or(3600);
-                return Ok((access_token.to_string(), expires_in));
-            }
-        }
-        Err(format!("OAuth refresh failed with status: {}", status).into())
-    }
-    pub async fn get_auth_header(&self) -> Option<String> {
-        let tokens = self.refresh_tokens.read().await;
-        if tokens.is_empty() {
-            return None;
-        }
-        let num_tokens = tokens.len();
-        let idx = {
-            let mut current_idx = self.current_token_index.write().await;
-            let val = *current_idx;
-            *current_idx = (val + 1) % num_tokens;
-            val
-        };
-        drop(tokens); 
-        self.get_access_token(idx)
-            .await
-            .map(|t| format!("Bearer {}", t))
-    }
-    pub async fn get_refresh_tokens(&self) -> Vec<String> {
-        self.refresh_tokens.read().await.clone()
-    }
-    pub async fn refresh_with_token(&self, refresh_token: &str) -> AnyResult<serde_json::Value> {
-        let res = self
-            .client
-            .post("https://www.youtube.com/o/oauth2/token")
-            .json(&json!({
-                "client_id": CLIENT_ID,
-                "client_secret": CLIENT_SECRET,
-                "refresh_token": refresh_token,
-                "grant_type": "refresh_token"
-            }))
-            .send()
-            .await?;
-        let status = res.status();
-        let body: serde_json::Value = res.json().await?;
-        if status.is_success() {
-            Ok(body)
-        } else {
-            Err(format!("OAuth refresh failed: status={}, body={}", status, body).into())
-        }
-    }
-}
 }
 pub mod cipher {
-use std::time::{Duration, Instant};
-use serde_json::{Value, json};
-use tokio::sync::RwLock;
-use crate::{common::types::AnyResult, config::sources::YouTubeCipherConfig};
-#[derive(Clone)]
-pub struct CachedPlayerScript {
-    pub url: String,
-    pub signature_timestamp: String,
-    pub expire_timestamp_ms: Instant,
-}
-pub struct YouTubeCipherManager {
-    config: YouTubeCipherConfig,
-    client: reqwest::Client,
-    cached_player_script: RwLock<Option<CachedPlayerScript>>,
-}
-impl YouTubeCipherManager {
-    pub fn new(config: YouTubeCipherConfig) -> Self {
-        Self {
-            config,
-            client: reqwest::Client::new(),
-            cached_player_script: RwLock::new(None),
-        }
+    use crate::{common::types::AnyResult, config::sources::YouTubeCipherConfig};
+    use serde_json::{Value, json};
+    use std::time::{Duration, Instant};
+    use tokio::sync::RwLock;
+    #[derive(Clone)]
+    pub struct CachedPlayerScript {
+        pub url: String,
+        pub signature_timestamp: String,
+        pub expire_timestamp_ms: Instant,
     }
-    pub async fn get_cached_player_script(&self) -> AnyResult<CachedPlayerScript> {
-        {
-            let cache = self.cached_player_script.read().await;
+    pub struct YouTubeCipherManager {
+        config: YouTubeCipherConfig,
+        client: reqwest::Client,
+        cached_player_script: RwLock<Option<CachedPlayerScript>>,
+    }
+    impl YouTubeCipherManager {
+        pub fn new(config: YouTubeCipherConfig) -> Self {
+            Self {
+                config,
+                client: reqwest::Client::new(),
+                cached_player_script: RwLock::new(None),
+            }
+        }
+        pub async fn get_cached_player_script(&self) -> AnyResult<CachedPlayerScript> {
+            {
+                let cache = self.cached_player_script.read().await;
+                if let Some(script) = &*cache
+                    && Instant::now() < script.expire_timestamp_ms
+                {
+                    return Ok(script.clone());
+                }
+            }
+            let mut cache = self.cached_player_script.write().await;
             if let Some(script) = &*cache
                 && Instant::now() < script.expire_timestamp_ms
             {
                 return Ok(script.clone());
             }
+            let script = self.get_player_script().await?;
+            *cache = Some(script.clone());
+            Ok(script)
         }
-        let mut cache = self.cached_player_script.write().await;
-        if let Some(script) = &*cache
-            && Instant::now() < script.expire_timestamp_ms
-        {
-            return Ok(script.clone());
-        }
-        let script = self.get_player_script().await?;
-        *cache = Some(script.clone());
-        Ok(script)
-    }
-    async fn get_player_script(&self) -> AnyResult<CachedPlayerScript> {
-        let res = self
+        async fn get_player_script(&self) -> AnyResult<CachedPlayerScript> {
+            let res = self
             .client
             .get("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
             .header(reqwest::header::USER_AGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36")
             .send()
             .await?;
-        let text = res.text().await?;
-        let re = regex::Regex::new(r#""jsUrl":"([^"]+)""#)?;
-        let mut script_url = if let Some(caps) = re.captures(&text) {
-            caps[1].to_string()
-        } else {
-            let res = self
+            let text = res.text().await?;
+            let re = regex::Regex::new(r#""jsUrl":"([^"]+)""#)?;
+            let mut script_url = if let Some(caps) = re.captures(&text) {
+                caps[1].to_string()
+            } else {
+                let res = self
                 .client
                 .get("https://www.youtube.com/embed/")
                 .header(reqwest::header::USER_AGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36")
                 .send()
                 .await?;
-            let text = res.text().await?;
-            if let Some(caps) = re.captures(&text) {
-                caps[1].to_string()
+                let text = res.text().await?;
+                if let Some(caps) = re.captures(&text) {
+                    caps[1].to_string()
+                } else {
+                    return Err("Could not find jsUrl in player script".into());
+                }
+            };
+            let locale_re = regex::Regex::new(r"/([a-z]{2}_[A-Z]{2})/")?;
+            script_url = locale_re.replace(&script_url, "/en_US/").to_string();
+            let full_url = if script_url.starts_with("http") {
+                script_url
             } else {
-                return Err("Could not find jsUrl in player script".into());
+                format!("https://www.youtube.com{}", script_url)
+            };
+            let signature_timestamp = self.get_timestamp(&full_url).await?;
+            Ok(CachedPlayerScript {
+                url: full_url,
+                signature_timestamp,
+                expire_timestamp_ms: Instant::now() + Duration::from_secs(12 * 60 * 60),
+            })
+        }
+        pub async fn get_timestamp(&self, source_url: &str) -> AnyResult<String> {
+            if let Some(url) = &self.config.url {
+                let mut headers = reqwest::header::HeaderMap::new();
+                if let Some(token) = &self.config.token {
+                    headers.insert(reqwest::header::AUTHORIZATION, token.parse()?);
+                }
+                if let Ok(res) = self
+                    .client
+                    .post(format!("{}/get_sts", url.trim_end_matches('/')))
+                    .headers(headers)
+                    .json(&json!({ "player_url": source_url }))
+                    .send()
+                    .await
+                {
+                    if res.status() == 200 {
+                        if let Ok(body) = res.json::<Value>().await {
+                            if let Some(sts) = body.get("sts").and_then(|v| v.as_str()) {
+                                return Ok(sts.to_string());
+                            }
+                        }
+                    }
+                }
             }
-        };
-        let locale_re = regex::Regex::new(r"/([a-z]{2}_[A-Z]{2})/")?;
-        script_url = locale_re.replace(&script_url, "/en_US/").to_string();
-        let full_url = if script_url.starts_with("http") {
-            script_url
-        } else {
-            format!("https://www.youtube.com{}", script_url)
-        };
-        let signature_timestamp = self.get_timestamp(&full_url).await?;
-        Ok(CachedPlayerScript {
-            url: full_url,
-            signature_timestamp,
-            expire_timestamp_ms: Instant::now() + Duration::from_secs(12 * 60 * 60),
-        })
-    }
-    pub async fn get_timestamp(&self, source_url: &str) -> AnyResult<String> {
-        if let Some(url) = &self.config.url {
+            let res = self.client.get(source_url).send().await?;
+            let text = res.text().await?;
+            let re = regex::Regex::new(r#"(?:signatureTimestamp|sts):(\d+)"#)?;
+            if let Some(caps) = re.captures(&text) {
+                Ok(caps[1].to_string())
+            } else {
+                Err("Could not find STS in player script".into())
+            }
+        }
+        pub async fn get_signature_timestamp(&self) -> AnyResult<u32> {
+            let script = self.get_cached_player_script().await?;
+            script
+                .signature_timestamp
+                .parse::<u32>()
+                .map_err(|e| e.into())
+        }
+        pub async fn resolve_url(
+            &self,
+            stream_url: &str,
+            player_url: &str,
+            n_param: Option<&str>,
+            sig: Option<&str>,
+        ) -> AnyResult<String> {
+            let url = self
+                .config
+                .url
+                .as_ref()
+                .ok_or("Remote cipher URL not configured")?;
+            let player_url = if let Ok(script) = self.get_cached_player_script().await {
+                script.url
+            } else {
+                player_url.to_string()
+            };
             let mut headers = reqwest::header::HeaderMap::new();
             if let Some(token) = &self.config.token {
                 headers.insert(reqwest::header::AUTHORIZATION, token.parse()?);
             }
-            if let Ok(res) = self
+            let mut body = json!({
+                "stream_url": stream_url,
+                "player_url": player_url,
+            });
+            if let Some(n) = n_param {
+                body["n_param"] = json!(n);
+            }
+            if let Some(s) = sig {
+                body["encrypted_signature"] = json!(s);
+                body["signature_key"] = json!("sig");
+            }
+            let res = self
                 .client
-                .post(format!("{}/get_sts", url.trim_end_matches('/')))
+                .post(format!("{}/resolve_url", url.trim_end_matches('/')))
                 .headers(headers)
-                .json(&json!({ "player_url": source_url }))
+                .json(&body)
                 .send()
-                .await
-            {
-                if res.status() == 200 {
-                    if let Ok(body) = res.json::<Value>().await {
-                        if let Some(sts) = body.get("sts").and_then(|v| v.as_str()) {
-                            return Ok(sts.to_string());
+                .await?;
+            let status = res.status();
+            if status == 200 {
+                let body: Value = res.json().await?;
+                if let Some(resolved) = body.get("resolved_url").and_then(|v| v.as_str()) {
+                    return Ok(resolved.to_string());
+                }
+                return Err("Resolved URL missing in response".into());
+            }
+            let err_body = res.text().await?;
+            Err(format!("Failed to resolve URL with status {}: {}", status, err_body).into())
+        }
+    }
+}
+pub mod reader {
+    use super::ua::get_youtube_ua;
+    use crate::{
+        audio::source::{SegmentedSource, create_client},
+        common::types::AnyResult,
+    };
+    use std::io::{Read, Seek, SeekFrom};
+    use symphonia::core::io::MediaSource;
+    pub struct YoutubeReader {
+        inner: SegmentedSource,
+    }
+    impl YoutubeReader {
+        pub async fn new(
+            url: &str,
+            local_addr: Option<std::net::IpAddr>,
+            proxy: Option<crate::config::HttpProxyConfig>,
+        ) -> AnyResult<Self> {
+            let user_agent = get_youtube_ua(url)
+                .map(str::to_string)
+                .unwrap_or_else(crate::common::utils::default_user_agent);
+            let client = create_client(user_agent, local_addr, proxy, None)?;
+            let inner = SegmentedSource::new(client, url).await?;
+            Ok(Self { inner })
+        }
+    }
+    impl Read for YoutubeReader {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            self.inner.read(buf)
+        }
+    }
+    impl Seek for YoutubeReader {
+        fn seek(&mut self, pos: SeekFrom) -> std::io::Result<u64> {
+            self.inner.seek(pos)
+        }
+    }
+    impl MediaSource for YoutubeReader {
+        fn is_seekable(&self) -> bool {
+            self.inner.is_seekable()
+        }
+        fn byte_len(&self) -> Option<u64> {
+            self.inner.byte_len()
+        }
+    }
+}
+pub mod extractor {
+    use crate::protocol::tracks::{Track, TrackInfo};
+    use serde_json::Value;
+    pub fn extract_from_player(body: &Value, source_name: &str) -> Option<Track> {
+        let details = body
+            .get("videoDetails")
+            .or_else(|| body.get("video_details"))?;
+        let video_id = details
+            .get("videoId")
+            .or_else(|| details.get("video_id"))?
+            .as_str()?;
+        let title = details.get("title")?.as_str()?.to_string();
+        let author = details.get("author")?.as_str()?.to_string();
+        let is_stream = details
+            .get("isLiveContent")
+            .or_else(|| details.get("is_live_content"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let length_seconds = details
+            .get("lengthSeconds")
+            .or_else(|| details.get("length_seconds"))
+            .and_then(|v| v.as_str())
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(0);
+        let artwork_url = details
+            .get("thumbnail")
+            .and_then(|t| t.get("thumbnails"))
+            .and_then(|arr| arr.as_array())
+            .and_then(|arr| arr.last())
+            .and_then(|thumb| thumb.get("url"))
+            .and_then(|url| url.as_str())
+            .map(|s| s.to_string());
+        let track = Track::new(TrackInfo {
+            identifier: video_id.to_string(),
+            is_seekable: !is_stream,
+            author,
+            length: if is_stream {
+                9223372036854775807
+            } else {
+                length_seconds * 1000
+            },
+            is_stream,
+            position: 0,
+            title,
+            uri: Some(format!("https://www.youtube.com/watch?v={}", video_id)),
+            artwork_url,
+            isrc: None,
+            source_name: source_name.to_string(),
+        });
+        Some(track)
+    }
+    pub fn extract_from_next(body: &Value, source_name: &str) -> Option<(Vec<Track>, String)> {
+        let contents_root = body.get("contents").and_then(|c| {
+            c.get("singleColumnWatchNextResults")
+                .or_else(|| c.get("singleColumnMusicWatchNextResultsRenderer"))
+                .or_else(|| c.get("twoColumnWatchNextResults"))
+        })?;
+        let playlist_content = contents_root
+            .get("playlist")
+            .and_then(|p| p.get("playlist"))
+            .and_then(|p| p.get("contents"))
+            .and_then(|c| c.as_array())
+            .or_else(|| {
+                contents_root
+                    .get("tabbedRenderer")
+                    .and_then(|t| t.get("watchNextTabbedResultsRenderer"))
+                    .and_then(|w| w.get("tabs"))
+                    .and_then(|t| t.get(0))
+                    .and_then(|t| t.get("tabRenderer"))
+                    .and_then(|t| t.get("content"))
+                    .and_then(|c| c.get("musicQueueRenderer"))
+                    .and_then(|music_queue| {
+                        music_queue
+                            .get("content")
+                            .and_then(|c| c.get("playlistPanelRenderer"))
+                            .and_then(|p| p.get("contents"))
+                            .or_else(|| music_queue.get("contents"))
+                            .and_then(|c| c.as_array())
+                    })
+            })?;
+        if playlist_content.is_empty() {
+            return None;
+        }
+        let mut tracks = Vec::new();
+        for item in playlist_content {
+            if let Some(track) = extract_track(item, source_name) {
+                tracks.push(track);
+            }
+        }
+        if tracks.is_empty() {
+            return None;
+        }
+        let title = contents_root
+            .get("tabbedRenderer")
+            .and_then(|t| t.get("watchNextTabbedResultsRenderer"))
+            .and_then(|t| t.get("tabs"))
+            .and_then(|t| t.get(0))
+            .and_then(|t| t.get("tabRenderer"))
+            .and_then(|t| t.get("content"))
+            .and_then(|c| c.get("musicQueueRenderer"))
+            .and_then(|m| m.get("header"))
+            .and_then(|h| h.get("musicQueueHeaderRenderer"))
+            .and_then(|m| m.get("subtitle"))
+            .and_then(get_text)
+            .or_else(|| {
+                contents_root
+                    .get("playlist")
+                    .and_then(|p| p.get("playlist"))
+                    .and_then(|p| p.get("title"))
+                    .and_then(|t| t.as_str())
+                    .map(|s| s.to_string())
+            })
+            .unwrap_or_else(|| "Unknown Playlist".to_string());
+        Some((tracks, title))
+    }
+    pub fn extract_from_browse(body: &Value, source_name: &str) -> Option<(Vec<Track>, String)> {
+        let title = body
+            .get("header")
+            .and_then(|h| {
+                h.get("playlistHeaderRenderer")
+                    .or_else(|| h.get("musicAlbumReleaseHeaderRenderer"))
+                    .or_else(|| h.get("musicDetailHeaderRenderer"))
+                    .or_else(|| {
+                        h.get("musicEditablePlaylistDetailHeaderRenderer")
+                            .and_then(|m| m.get("header"))
+                            .and_then(|h| h.get("musicDetailHeaderRenderer"))
+                    })
+            })
+            .and_then(|h| h.get("title"))
+            .and_then(get_text)
+            .unwrap_or_else(|| "Unknown Playlist".to_string());
+        let mut tracks = Vec::new();
+        if let Some(section_list) = find_section_list(body)
+            && let Some(contents) = section_list.get("contents").and_then(|c| c.as_array())
+        {
+            for section in contents {
+                if let Some(list) = section
+                    .get("itemSectionRenderer")
+                    .and_then(|i| i.get("contents"))
+                    .and_then(|c| c.as_array())
+                    .and_then(|arr| arr.first())
+                    .and_then(|first| first.get("playlistVideoListRenderer"))
+                    .and_then(|p| p.get("contents"))
+                    .and_then(|c| c.as_array())
+                {
+                    for item in list {
+                        if let Some(track) = extract_track(item, source_name) {
+                            tracks.push(track);
+                        }
+                    }
+                }
+                if let Some(list) = section
+                    .get("musicShelfRenderer")
+                    .and_then(|s| s.get("contents"))
+                    .and_then(|c| c.as_array())
+                {
+                    for item in list {
+                        if let Some(track) = extract_track(item, source_name) {
+                            tracks.push(track);
+                        }
+                    }
+                }
+                if let Some(shelf) = section.get("musicPlaylistShelfRenderer")
+                    && let Some(list) = shelf.get("contents").and_then(|c| c.as_array())
+                {
+                    for item in list {
+                        if let Some(track) = extract_track(item, source_name) {
+                            tracks.push(track);
                         }
                     }
                 }
             }
         }
-        let res = self.client.get(source_url).send().await?;
-        let text = res.text().await?;
-        let re = regex::Regex::new(r#"(?:signatureTimestamp|sts):(\d+)"#)?;
-        if let Some(caps) = re.captures(&text) {
-            Ok(caps[1].to_string())
-        } else {
-            Err("Could not find STS in player script".into())
-        }
-    }
-    pub async fn get_signature_timestamp(&self) -> AnyResult<u32> {
-        let script = self.get_cached_player_script().await?;
-        script
-            .signature_timestamp
-            .parse::<u32>()
-            .map_err(|e| e.into())
-    }
-    pub async fn resolve_url(
-        &self,
-        stream_url: &str,
-        player_url: &str, 
-        n_param: Option<&str>,
-        sig: Option<&str>,
-    ) -> AnyResult<String> {
-        let url = self
-            .config
-            .url
-            .as_ref()
-            .ok_or("Remote cipher URL not configured")?;
-        let player_url = if let Ok(script) = self.get_cached_player_script().await {
-            script.url
-        } else {
-            player_url.to_string()
-        };
-        let mut headers = reqwest::header::HeaderMap::new();
-        if let Some(token) = &self.config.token {
-            headers.insert(reqwest::header::AUTHORIZATION, token.parse()?);
-        }
-        let mut body = json!({
-            "stream_url": stream_url,
-            "player_url": player_url,
-        });
-        if let Some(n) = n_param {
-            body["n_param"] = json!(n);
-        }
-        if let Some(s) = sig {
-            body["encrypted_signature"] = json!(s);
-            body["signature_key"] = json!("sig");
-        }
-        let res = self
-            .client
-            .post(format!("{}/resolve_url", url.trim_end_matches('/')))
-            .headers(headers)
-            .json(&body)
-            .send()
-            .await?;
-        let status = res.status();
-        if status == 200 {
-            let body: Value = res.json().await?;
-            if let Some(resolved) = body.get("resolved_url").and_then(|v| v.as_str()) {
-                return Ok(resolved.to_string());
-            }
-            return Err("Resolved URL missing in response".into());
-        }
-        let err_body = res.text().await?;
-        Err(format!("Failed to resolve URL with status {}: {}", status, err_body).into())
-    }
-}
-}
-pub mod reader {
-use std::io::{Read, Seek, SeekFrom};
-use symphonia::core::io::MediaSource;
-use super::ua::get_youtube_ua;
-use crate::{
-    audio::source::{SegmentedSource, create_client},
-    common::types::AnyResult,
-};
-pub struct YoutubeReader {
-    inner: SegmentedSource,
-}
-impl YoutubeReader {
-    pub async fn new(
-        url: &str,
-        local_addr: Option<std::net::IpAddr>,
-        proxy: Option<crate::config::HttpProxyConfig>,
-    ) -> AnyResult<Self> {
-        let user_agent = get_youtube_ua(url)
-            .map(str::to_string)
-            .unwrap_or_else(crate::common::utils::default_user_agent);
-        let client = create_client(user_agent, local_addr, proxy, None)?;
-        let inner = SegmentedSource::new(client, url).await?;
-        Ok(Self { inner })
-    }
-}
-impl Read for YoutubeReader {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        self.inner.read(buf)
-    }
-}
-impl Seek for YoutubeReader {
-    fn seek(&mut self, pos: SeekFrom) -> std::io::Result<u64> {
-        self.inner.seek(pos)
-    }
-}
-impl MediaSource for YoutubeReader {
-    fn is_seekable(&self) -> bool {
-        self.inner.is_seekable()
-    }
-    fn byte_len(&self) -> Option<u64> {
-        self.inner.byte_len()
-    }
-}
-}
-pub mod extractor {
-use serde_json::Value;
-use crate::protocol::tracks::{Track, TrackInfo};
-pub fn extract_from_player(body: &Value, source_name: &str) -> Option<Track> {
-    let details = body
-        .get("videoDetails")
-        .or_else(|| body.get("video_details"))?;
-    let video_id = details
-        .get("videoId")
-        .or_else(|| details.get("video_id"))?
-        .as_str()?;
-    let title = details.get("title")?.as_str()?.to_string();
-    let author = details.get("author")?.as_str()?.to_string();
-    let is_stream = details
-        .get("isLiveContent")
-        .or_else(|| details.get("is_live_content"))
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-    let length_seconds = details
-        .get("lengthSeconds")
-        .or_else(|| details.get("length_seconds"))
-        .and_then(|v| v.as_str())
-        .and_then(|s| s.parse::<u64>().ok())
-        .unwrap_or(0);
-    let artwork_url = details
-        .get("thumbnail")
-        .and_then(|t| t.get("thumbnails"))
-        .and_then(|arr| arr.as_array())
-        .and_then(|arr| arr.last())
-        .and_then(|thumb| thumb.get("url"))
-        .and_then(|url| url.as_str())
-        .map(|s| s.to_string());
-    let track = Track::new(TrackInfo {
-        identifier: video_id.to_string(),
-        is_seekable: !is_stream,
-        author,
-        length: if is_stream {
-            9223372036854775807
-        } else {
-            length_seconds * 1000
-        },
-        is_stream,
-        position: 0,
-        title,
-        uri: Some(format!("https://www.youtube.com/watch?v={}", video_id)),
-        artwork_url,
-        isrc: None,
-        source_name: source_name.to_string(),
-    });
-    Some(track)
-}
-pub fn extract_from_next(body: &Value, source_name: &str) -> Option<(Vec<Track>, String)> {
-    let contents_root = body.get("contents").and_then(|c| {
-        c.get("singleColumnWatchNextResults")
-            .or_else(|| c.get("singleColumnMusicWatchNextResultsRenderer"))
-            .or_else(|| c.get("twoColumnWatchNextResults"))
-    })?;
-    let playlist_content = contents_root
-        .get("playlist")
-        .and_then(|p| p.get("playlist"))
-        .and_then(|p| p.get("contents"))
-        .and_then(|c| c.as_array())
-        .or_else(|| {
-            contents_root
-                .get("tabbedRenderer")
-                .and_then(|t| t.get("watchNextTabbedResultsRenderer"))
-                .and_then(|w| w.get("tabs"))
-                .and_then(|t| t.get(0))
+        if tracks.is_empty()
+            && let Some(contents) = body
+                .get("contents")
+                .and_then(|c| c.get("singleColumnBrowseResultsRenderer"))
+                .and_then(|s| s.get("tabs"))
+                .and_then(|t| t.as_array())
+                .and_then(|t| t.first())
                 .and_then(|t| t.get("tabRenderer"))
                 .and_then(|t| t.get("content"))
-                .and_then(|c| c.get("musicQueueRenderer"))
-                .and_then(|music_queue| {
-                    music_queue
-                        .get("content")
-                        .and_then(|c| c.get("playlistPanelRenderer"))
-                        .and_then(|p| p.get("contents"))
-                        .or_else(|| music_queue.get("contents"))
-                        .and_then(|c| c.as_array())
-                })
-        })?;
-    if playlist_content.is_empty() {
-        return None;
-    }
-    let mut tracks = Vec::new();
-    for item in playlist_content {
-        if let Some(track) = extract_track(item, source_name) {
-            tracks.push(track);
-        }
-    }
-    if tracks.is_empty() {
-        return None;
-    }
-    let title = contents_root
-        .get("tabbedRenderer")
-        .and_then(|t| t.get("watchNextTabbedResultsRenderer"))
-        .and_then(|t| t.get("tabs"))
-        .and_then(|t| t.get(0))
-        .and_then(|t| t.get("tabRenderer"))
-        .and_then(|t| t.get("content"))
-        .and_then(|c| c.get("musicQueueRenderer"))
-        .and_then(|m| m.get("header"))
-        .and_then(|h| h.get("musicQueueHeaderRenderer"))
-        .and_then(|m| m.get("subtitle"))
-        .and_then(get_text)
-        .or_else(|| {
-            contents_root
-                .get("playlist")
-                .and_then(|p| p.get("playlist"))
-                .and_then(|p| p.get("title"))
-                .and_then(|t| t.as_str())
-                .map(|s| s.to_string())
-        })
-        .unwrap_or_else(|| "Unknown Playlist".to_string());
-    Some((tracks, title))
-}
-pub fn extract_from_browse(body: &Value, source_name: &str) -> Option<(Vec<Track>, String)> {
-    let title = body
-        .get("header")
-        .and_then(|h| {
-            h.get("playlistHeaderRenderer")
-                .or_else(|| h.get("musicAlbumReleaseHeaderRenderer"))
-                .or_else(|| h.get("musicDetailHeaderRenderer"))
-                .or_else(|| {
-                    h.get("musicEditablePlaylistDetailHeaderRenderer")
-                        .and_then(|m| m.get("header"))
-                        .and_then(|h| h.get("musicDetailHeaderRenderer"))
-                })
-        })
-        .and_then(|h| h.get("title"))
-        .and_then(get_text)
-        .unwrap_or_else(|| "Unknown Playlist".to_string());
-    let mut tracks = Vec::new();
-    if let Some(section_list) = find_section_list(body)
-        && let Some(contents) = section_list.get("contents").and_then(|c| c.as_array())
-    {
-        for section in contents {
-            if let Some(list) = section
-                .get("itemSectionRenderer")
-                .and_then(|i| i.get("contents"))
-                .and_then(|c| c.as_array())
-                .and_then(|arr| arr.first())
-                .and_then(|first| first.get("playlistVideoListRenderer"))
-                .and_then(|p| p.get("contents"))
-                .and_then(|c| c.as_array())
-            {
-                for item in list {
-                    if let Some(track) = extract_track(item, source_name) {
-                        tracks.push(track);
-                    }
-                }
-            }
-            if let Some(list) = section
-                .get("musicShelfRenderer")
+                .and_then(|c| c.get("sectionListRenderer"))
                 .and_then(|s| s.get("contents"))
                 .and_then(|c| c.as_array())
-            {
-                for item in list {
-                    if let Some(track) = extract_track(item, source_name) {
-                        tracks.push(track);
-                    }
-                }
-            }
-            if let Some(shelf) = section.get("musicPlaylistShelfRenderer")
-                && let Some(list) = shelf.get("contents").and_then(|c| c.as_array())
-            {
-                for item in list {
-                    if let Some(track) = extract_track(item, source_name) {
-                        tracks.push(track);
-                    }
+                .and_then(|c| c.first())
+                .and_then(|c| c.get("musicPlaylistShelfRenderer"))
+            && let Some(list) = contents.get("contents").and_then(|c| c.as_array())
+        {
+            for item in list {
+                if let Some(track) = extract_track(item, source_name) {
+                    tracks.push(track);
                 }
             }
         }
-    }
-    if tracks.is_empty()
-        && let Some(contents) = body
-            .get("contents")
-            .and_then(|c| c.get("singleColumnBrowseResultsRenderer"))
-            .and_then(|s| s.get("tabs"))
-            .and_then(|t| t.as_array())
-            .and_then(|t| t.first())
-            .and_then(|t| t.get("tabRenderer"))
-            .and_then(|t| t.get("content"))
-            .and_then(|c| c.get("sectionListRenderer"))
-            .and_then(|s| s.get("contents"))
-            .and_then(|c| c.as_array())
-            .and_then(|c| c.first())
-            .and_then(|c| c.get("musicPlaylistShelfRenderer"))
-        && let Some(list) = contents.get("contents").and_then(|c| c.as_array())
-    {
-        for item in list {
-            if let Some(track) = extract_track(item, source_name) {
-                tracks.push(track);
+        if tracks.is_empty()
+            && let Some(list) = find_music_playlist_shelf(body)
+        {
+            for item in list {
+                if let Some(track) = extract_track(item, source_name) {
+                    tracks.push(track);
+                }
             }
         }
-    }
-    if tracks.is_empty()
-        && let Some(list) = find_music_playlist_shelf(body)
-    {
-        for item in list {
-            if let Some(track) = extract_track(item, source_name) {
-                tracks.push(track);
+        if tracks.is_empty()
+            && let Some(continuation_contents) = body
+                .get("onResponseReceivedActions")
+                .and_then(|a| a.as_array())
+                .and_then(|arr| arr.first())
+                .and_then(|a| a.get("appendContinuationItemsAction"))
+                .and_then(|a| a.get("continuationItems"))
+                .and_then(|c| c.as_array())
+        {
+            for item in continuation_contents {
+                if let Some(track) = extract_track(item, source_name) {
+                    tracks.push(track);
+                }
             }
         }
+        if tracks.is_empty() {
+            return None;
+        }
+        Some((tracks, title))
     }
-    if tracks.is_empty()
-        && let Some(continuation_contents) = body
-            .get("onResponseReceivedActions")
-            .and_then(|a| a.as_array())
-            .and_then(|arr| arr.first())
-            .and_then(|a| a.get("appendContinuationItemsAction"))
-            .and_then(|a| a.get("continuationItems"))
-            .and_then(|c| c.as_array())
-    {
-        for item in continuation_contents {
-            if let Some(track) = extract_track(item, source_name) {
-                tracks.push(track);
+    fn find_music_playlist_shelf(value: &Value) -> Option<&Vec<Value>> {
+        if let Some(shelf) = value.get("musicPlaylistShelfRenderer") {
+            return shelf.get("contents").and_then(|c| c.as_array());
+        }
+        if let Some(obj) = value.as_object() {
+            for (_, val) in obj {
+                if let Some(list) = find_music_playlist_shelf(val) {
+                    return Some(list);
+                }
             }
         }
-    }
-    if tracks.is_empty() {
-        return None;
-    }
-    Some((tracks, title))
-}
-fn find_music_playlist_shelf(value: &Value) -> Option<&Vec<Value>> {
-    if let Some(shelf) = value.get("musicPlaylistShelfRenderer") {
-        return shelf.get("contents").and_then(|c| c.as_array());
-    }
-    if let Some(obj) = value.as_object() {
-        for (_, val) in obj {
-            if let Some(list) = find_music_playlist_shelf(val) {
-                return Some(list);
+        if let Some(arr) = value.as_array() {
+            for item in arr {
+                if let Some(list) = find_music_playlist_shelf(item) {
+                    return Some(list);
+                }
             }
         }
+        None
     }
-    if let Some(arr) = value.as_array() {
-        for item in arr {
-            if let Some(list) = find_music_playlist_shelf(item) {
-                return Some(list);
+    pub fn find_section_list(value: &Value) -> Option<&Value> {
+        if let Some(list) = value.get("sectionListRenderer") {
+            return Some(list);
+        }
+        if let Some(contents) = value.get("contents")
+            && let Some(list) = find_section_list(contents)
+        {
+            return Some(list);
+        }
+        if let Some(arr) = value.as_array() {
+            for item in arr {
+                if let Some(list) = find_section_list(item) {
+                    return Some(list);
+                }
             }
         }
-    }
-    None
-}
-pub fn find_section_list(value: &Value) -> Option<&Value> {
-    if let Some(list) = value.get("sectionListRenderer") {
-        return Some(list);
-    }
-    if let Some(contents) = value.get("contents")
-        && let Some(list) = find_section_list(contents)
-    {
-        return Some(list);
-    }
-    if let Some(arr) = value.as_array() {
-        for item in arr {
-            if let Some(list) = find_section_list(item) {
-                return Some(list);
+        if let Some(tabs) = value.get("tabs").and_then(|t| t.as_array()) {
+            for tab in tabs {
+                if let Some(content) = tab.get("tabRenderer").and_then(|tr| tr.get("content"))
+                    && let Some(list) = find_section_list(content)
+                {
+                    return Some(list);
+                }
             }
         }
-    }
-    if let Some(tabs) = value.get("tabs").and_then(|t| t.as_array()) {
-        for tab in tabs {
-            if let Some(content) = tab.get("tabRenderer").and_then(|tr| tr.get("content"))
-                && let Some(list) = find_section_list(content)
-            {
-                return Some(list);
-            }
+        if let Some(primary) = value
+            .get("twoColumnSearchResultsRenderer")
+            .and_then(|t| t.get("primaryContents"))
+        {
+            return find_section_list(primary);
         }
+        None
     }
-    if let Some(primary) = value
-        .get("twoColumnSearchResultsRenderer")
-        .and_then(|t| t.get("primaryContents"))
-    {
-        return find_section_list(primary);
-    }
-    None
-}
-pub fn extract_track(item: &Value, source_name: &str) -> Option<Track> {
-    let renderer = item
-        .get("videoRenderer")
-        .or_else(|| item.get("compactVideoRenderer"))
-        .or_else(|| item.get("playlistVideoRenderer"))
-        .or_else(|| item.get("musicResponsiveListItemRenderer"))
-        .or_else(|| item.get("musicTwoColumnItemRenderer"))
-        .or_else(|| item.get("playlistPanelVideoRenderer"))
-        .or_else(|| item.get("gridVideoRenderer"))?;
-    let video_id = renderer
-        .get("videoId")
-        .and_then(|v| v.as_str())
-        .or_else(|| {
-            renderer
-                .get("playlistItemData")
-                .and_then(|d| d.get("videoId"))
-                .and_then(|v| v.as_str())
-        })
-        .or_else(|| {
-            renderer
-                .get("doubleTapCommand")
-                .and_then(|c| c.get("watchEndpoint"))
-                .and_then(|w| w.get("videoId"))
-                .and_then(|v| v.as_str())
-        })
-        .or_else(|| {
-            renderer
-                .get("navigationEndpoint")
-                .and_then(|n| n.get("watchEndpoint"))
-                .and_then(|w| w.get("videoId"))
-                .and_then(|v| v.as_str())
-        })?;
-    let title = get_text(renderer.get("title").or_else(|| {
-        renderer
-            .get("flexColumns")
-            .and_then(|c| c.get(0))
-            .and_then(|c| c.get("musicResponsiveListItemFlexColumnRenderer"))
-            .and_then(|r| r.get("text"))
-    })?)
-    .unwrap_or_else(|| "Unknown Title".to_string());
-    let author = extract_author(renderer).unwrap_or_else(|| "Unknown Artist".to_string());
-    let is_stream = renderer
-        .get("isLive")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false)
-        || renderer
-            .get("badges")
-            .and_then(|b| b.as_array())
-            .map(|arr| {
-                arr.iter().any(|badge| {
-                    badge
-                        .get("metadataBadgeRenderer")
-                        .and_then(|mbr| mbr.get("label"))
-                        .and_then(|l| l.as_str())
-                        .map(|s| s == "LIVE")
-                        .unwrap_or(false)
-                })
-            })
-            .unwrap_or(false);
-    let length_ms = if is_stream {
-        9223372036854775807
-    } else {
-        renderer
-            .get("lengthText")
-            .and_then(get_text)
-            .map(|s| parse_duration(&s))
+    pub fn extract_track(item: &Value, source_name: &str) -> Option<Track> {
+        let renderer = item
+            .get("videoRenderer")
+            .or_else(|| item.get("compactVideoRenderer"))
+            .or_else(|| item.get("playlistVideoRenderer"))
+            .or_else(|| item.get("musicResponsiveListItemRenderer"))
+            .or_else(|| item.get("musicTwoColumnItemRenderer"))
+            .or_else(|| item.get("playlistPanelVideoRenderer"))
+            .or_else(|| item.get("gridVideoRenderer"))?;
+        let video_id = renderer
+            .get("videoId")
+            .and_then(|v| v.as_str())
             .or_else(|| {
                 renderer
-                    .get("lengthSeconds")
+                    .get("playlistItemData")
+                    .and_then(|d| d.get("videoId"))
                     .and_then(|v| v.as_str())
-                    .and_then(|s| s.parse::<i64>().ok())
-                    .map(|s| s * 1000)
             })
-            .unwrap_or(0)
-    };
-    Some(Track::new(TrackInfo {
-        identifier: video_id.to_string(),
-        is_seekable: !is_stream,
-        author,
-        length: length_ms as u64,
-        is_stream,
-        position: 0,
-        title,
-        uri: Some(format!("https://www.youtube.com/watch?v={}", video_id)),
-        artwork_url: get_thumbnail(renderer),
-        isrc: None,
-        source_name: source_name.to_string(),
-    }))
-}
-fn extract_author(renderer: &Value) -> Option<String> {
-    if let Some(subtitle) = renderer.get("subtitle")
-        && let Some(text) = get_first_subtitle_run(subtitle)
-    {
-        let artist = text.split(" • ").next().unwrap_or(&text).trim();
-        if !artist.is_empty() {
-            return Some(artist.to_string());
-        }
+            .or_else(|| {
+                renderer
+                    .get("doubleTapCommand")
+                    .and_then(|c| c.get("watchEndpoint"))
+                    .and_then(|w| w.get("videoId"))
+                    .and_then(|v| v.as_str())
+            })
+            .or_else(|| {
+                renderer
+                    .get("navigationEndpoint")
+                    .and_then(|n| n.get("watchEndpoint"))
+                    .and_then(|w| w.get("videoId"))
+                    .and_then(|v| v.as_str())
+            })?;
+        let title = get_text(renderer.get("title").or_else(|| {
+            renderer
+                .get("flexColumns")
+                .and_then(|c| c.get(0))
+                .and_then(|c| c.get("musicResponsiveListItemFlexColumnRenderer"))
+                .and_then(|r| r.get("text"))
+        })?)
+        .unwrap_or_else(|| "Unknown Title".to_string());
+        let author = extract_author(renderer).unwrap_or_else(|| "Unknown Artist".to_string());
+        let is_stream = renderer
+            .get("isLive")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false)
+            || renderer
+                .get("badges")
+                .and_then(|b| b.as_array())
+                .map(|arr| {
+                    arr.iter().any(|badge| {
+                        badge
+                            .get("metadataBadgeRenderer")
+                            .and_then(|mbr| mbr.get("label"))
+                            .and_then(|l| l.as_str())
+                            .map(|s| s == "LIVE")
+                            .unwrap_or(false)
+                    })
+                })
+                .unwrap_or(false);
+        let length_ms = if is_stream {
+            9223372036854775807
+        } else {
+            renderer
+                .get("lengthText")
+                .and_then(get_text)
+                .map(|s| parse_duration(&s))
+                .or_else(|| {
+                    renderer
+                        .get("lengthSeconds")
+                        .and_then(|v| v.as_str())
+                        .and_then(|s| s.parse::<i64>().ok())
+                        .map(|s| s * 1000)
+                })
+                .unwrap_or(0)
+        };
+        Some(Track::new(TrackInfo {
+            identifier: video_id.to_string(),
+            is_seekable: !is_stream,
+            author,
+            length: length_ms as u64,
+            is_stream,
+            position: 0,
+            title,
+            uri: Some(format!("https://www.youtube.com/watch?v={}", video_id)),
+            artwork_url: get_thumbnail(renderer),
+            isrc: None,
+            source_name: source_name.to_string(),
+        }))
     }
-    if let Some(author) = renderer
-        .get("menu")
-        .and_then(|m| m.get("menuRenderer"))
-        .and_then(|m| m.get("title"))
-        .and_then(|t| t.get("musicMenuTitleRenderer"))
-        .and_then(|m| m.get("secondaryText"))
-        .and_then(get_first_text)
-    {
-        return Some(author);
-    }
-    if let Some(text) = renderer.get("longBylineText").and_then(get_first_text) {
-        return Some(text);
-    }
-    if let Some(text) = renderer.get("shortBylineText").and_then(get_first_text) {
-        return Some(text);
-    }
-    if let Some(text) = renderer.get("ownerText").and_then(get_first_text) {
-        return Some(text);
-    }
-    if let Some(flex) = renderer
-        .get("flexColumns")
-        .and_then(|c| c.get(1))
-        .and_then(|c| c.get("musicResponsiveListItemFlexColumnRenderer"))
-        .and_then(|r| r.get("text"))
-        && let Some(runs) = flex.get("runs").and_then(|r| r.as_array())
-        && let Some(text) = runs.first().and_then(|r| r.get("text")).and_then(|t| t.as_str())
-    {
-        return Some(text.to_string());
-    }
-    None
-}
-fn get_first_subtitle_run(subtitle: &Value) -> Option<String> {
-    if let Some(runs) = subtitle.get("runs").and_then(|r| r.as_array()) {
-        return runs
-            .first()
-            .and_then(|r| r.get("text"))
-            .and_then(|t| t.as_str())
-            .map(|s| s.to_string());
-    }
-    if let Some(simple_text) = subtitle.get("simpleText").and_then(|v| v.as_str()) {
-        return Some(simple_text.to_string());
-    }
-    if let Some(s) = subtitle.as_str() {
-        return Some(s.to_string());
-    }
-    None
-}
-fn get_text(obj: &Value) -> Option<String> {
-    if let Some(s) = obj.as_str() {
-        return Some(s.to_string());
-    }
-    if let Some(simple_text) = obj.get("simpleText").and_then(|v| v.as_str()) {
-        return Some(simple_text.to_string());
-    }
-    if let Some(runs) = obj.get("runs").and_then(|v| v.as_array()) {
-        let mut text = String::new();
-        for run in runs {
-            if let Some(t) = run.get("text").and_then(|v| v.as_str()) {
-                text.push_str(t);
+    fn extract_author(renderer: &Value) -> Option<String> {
+        if let Some(subtitle) = renderer.get("subtitle")
+            && let Some(text) = get_first_subtitle_run(subtitle)
+        {
+            let artist = text.split(" • ").next().unwrap_or(&text).trim();
+            if !artist.is_empty() {
+                return Some(artist.to_string());
             }
         }
-        return Some(text);
+        if let Some(author) = renderer
+            .get("menu")
+            .and_then(|m| m.get("menuRenderer"))
+            .and_then(|m| m.get("title"))
+            .and_then(|t| t.get("musicMenuTitleRenderer"))
+            .and_then(|m| m.get("secondaryText"))
+            .and_then(get_first_text)
+        {
+            return Some(author);
+        }
+        if let Some(text) = renderer.get("longBylineText").and_then(get_first_text) {
+            return Some(text);
+        }
+        if let Some(text) = renderer.get("shortBylineText").and_then(get_first_text) {
+            return Some(text);
+        }
+        if let Some(text) = renderer.get("ownerText").and_then(get_first_text) {
+            return Some(text);
+        }
+        if let Some(flex) = renderer
+            .get("flexColumns")
+            .and_then(|c| c.get(1))
+            .and_then(|c| c.get("musicResponsiveListItemFlexColumnRenderer"))
+            .and_then(|r| r.get("text"))
+            && let Some(runs) = flex.get("runs").and_then(|r| r.as_array())
+            && let Some(text) = runs
+                .first()
+                .and_then(|r| r.get("text"))
+                .and_then(|t| t.as_str())
+        {
+            return Some(text.to_string());
+        }
+        None
     }
-    None
-}
-fn get_first_text(obj: &Value) -> Option<String> {
-    if let Some(s) = obj.as_str() {
-        return Some(s.to_string());
+    fn get_first_subtitle_run(subtitle: &Value) -> Option<String> {
+        if let Some(runs) = subtitle.get("runs").and_then(|r| r.as_array()) {
+            return runs
+                .first()
+                .and_then(|r| r.get("text"))
+                .and_then(|t| t.as_str())
+                .map(|s| s.to_string());
+        }
+        if let Some(simple_text) = subtitle.get("simpleText").and_then(|v| v.as_str()) {
+            return Some(simple_text.to_string());
+        }
+        if let Some(s) = subtitle.as_str() {
+            return Some(s.to_string());
+        }
+        None
     }
-    if let Some(simple_text) = obj.get("simpleText").and_then(|v| v.as_str()) {
-        return Some(simple_text.to_string());
+    fn get_text(obj: &Value) -> Option<String> {
+        if let Some(s) = obj.as_str() {
+            return Some(s.to_string());
+        }
+        if let Some(simple_text) = obj.get("simpleText").and_then(|v| v.as_str()) {
+            return Some(simple_text.to_string());
+        }
+        if let Some(runs) = obj.get("runs").and_then(|v| v.as_array()) {
+            let mut text = String::new();
+            for run in runs {
+                if let Some(t) = run.get("text").and_then(|v| v.as_str()) {
+                    text.push_str(t);
+                }
+            }
+            return Some(text);
+        }
+        None
     }
-    if let Some(runs) = obj.get("runs").and_then(|v| v.as_array()) {
-        return runs
-            .first()
-            .and_then(|run| run.get("text"))
-            .and_then(|t| t.as_str())
-            .map(|s| s.to_string());
+    fn get_first_text(obj: &Value) -> Option<String> {
+        if let Some(s) = obj.as_str() {
+            return Some(s.to_string());
+        }
+        if let Some(simple_text) = obj.get("simpleText").and_then(|v| v.as_str()) {
+            return Some(simple_text.to_string());
+        }
+        if let Some(runs) = obj.get("runs").and_then(|v| v.as_array()) {
+            return runs
+                .first()
+                .and_then(|run| run.get("text"))
+                .and_then(|t| t.as_str())
+                .map(|s| s.to_string());
+        }
+        None
     }
-    None
-}
-fn parse_duration(s: &str) -> i64 {
-    let parts: Vec<&str> = s.split(':').collect();
-    let mut seconds = 0;
-    for part in parts {
-        seconds = seconds * 60 + part.parse::<i64>().unwrap_or(0);
+    fn parse_duration(s: &str) -> i64 {
+        let parts: Vec<&str> = s.split(':').collect();
+        let mut seconds = 0;
+        for part in parts {
+            seconds = seconds * 60 + part.parse::<i64>().unwrap_or(0);
+        }
+        seconds * 1000
     }
-    seconds * 1000
-}
-fn get_thumbnail(renderer: &Value) -> Option<String> {
-    renderer
-        .get("thumbnail")
-        .and_then(|t| t.get("thumbnails"))
-        .and_then(|arr| arr.as_array())
-        .and_then(|arr| arr.last()) 
-        .and_then(|thumb| thumb.get("url"))
-        .and_then(|url| url.as_str())
-        .map(|s| s.split('?').next().unwrap_or(s).to_string())
-}
+    fn get_thumbnail(renderer: &Value) -> Option<String> {
+        renderer
+            .get("thumbnail")
+            .and_then(|t| t.get("thumbnails"))
+            .and_then(|arr| arr.as_array())
+            .and_then(|arr| arr.last())
+            .and_then(|thumb| thumb.get("url"))
+            .and_then(|url| url.as_str())
+            .map(|s| s.split('?').next().unwrap_or(s).to_string())
+    }
 }
 pub mod track {
-use std::{net::IpAddr, sync::Arc};
-use async_trait::async_trait;
-use tracing::{debug, error, info, warn};
-use crate::{
-    config::HttpProxyConfig,
-    sources::{
-        playable_track::{PlayableTrack, ResolvedTrack},
-        youtube::{
-            cipher::YouTubeCipherManager,
-            clients::YouTubeClient,
-            oauth::YouTubeOAuth,
-            utils::{create_reader, detect_audio_kind},
+    use crate::{
+        config::HttpProxyConfig,
+        sources::{
+            playable_track::{PlayableTrack, ResolvedTrack},
+            youtube::{
+                cipher::YouTubeCipherManager,
+                clients::YouTubeClient,
+                oauth::YouTubeOAuth,
+                utils::{create_reader, detect_audio_kind},
+            },
         },
-    },
-};
-pub struct YoutubeTrack {
-    pub identifier: String,
-    pub clients: Vec<Arc<dyn YouTubeClient>>,
-    pub oauth: Arc<YouTubeOAuth>,
-    pub cipher_manager: Arc<YouTubeCipherManager>,
-    pub visitor_data: Option<String>,
-    pub local_addr: Option<IpAddr>,
-    pub proxy: Option<HttpProxyConfig>,
-}
-#[async_trait]
-impl PlayableTrack for YoutubeTrack {
-    fn supports_seek(&self) -> bool {
-        true
+    };
+    use async_trait::async_trait;
+    use std::{net::IpAddr, sync::Arc};
+    use tracing::{debug, error, info, warn};
+    pub struct YoutubeTrack {
+        pub identifier: String,
+        pub clients: Vec<Arc<dyn YouTubeClient>>,
+        pub oauth: Arc<YouTubeOAuth>,
+        pub cipher_manager: Arc<YouTubeCipherManager>,
+        pub visitor_data: Option<String>,
+        pub local_addr: Option<IpAddr>,
+        pub proxy: Option<HttpProxyConfig>,
     }
-    async fn resolve(&self) -> Result<ResolvedTrack, String> {
-        let context = serde_json::json!({ "visitorData": self.visitor_data });
-        let mut last_error = String::from("No clients available");
-        for client in &self.clients {
-            let name = client.name().to_string();
-            let url = match client
-                .get_track_url(
-                    &self.identifier,
-                    &context,
-                    self.cipher_manager.clone(),
-                    self.oauth.clone(),
-                )
-                .await
-            {
-                Ok(Some(url)) => {
-                    info!(
-                        "YoutubeTrack: resolved '{}' using '{name}'",
-                        self.identifier
-                    );
-                    url
-                }
-                Ok(None) => {
-                    debug!(
-                        "YoutubeTrack: client '{name}' returned no URL for '{}'",
-                        self.identifier
-                    );
-                    continue;
-                }
-                Err(e) => {
-                    warn!(
-                        "YoutubeTrack: client '{name}' failed for '{}': {e}",
-                        self.identifier
-                    );
-                    last_error = e.to_string();
-                    continue;
-                }
-            };
-            let is_hls = url.contains(".m3u8") || url.contains("/playlist");
-            let hint = Some(detect_audio_kind(&url, is_hls));
-            let proxy = self.proxy.clone();
-            let local_addr = self.local_addr;
-            let cipher = self.cipher_manager.clone();
-            let url_clone = url.clone();
-            let name_clone = name.clone();
-            match create_reader(&url_clone, &name_clone, local_addr, proxy, cipher).await {
-                Ok(reader) => return Ok(ResolvedTrack::new(reader, hint)),
-                Err(e) => {
-                    warn!("YoutubeTrack: reader failed for '{name}': {e} — trying next client");
-                    last_error = e.to_string();
-                    continue;
+    #[async_trait]
+    impl PlayableTrack for YoutubeTrack {
+        fn supports_seek(&self) -> bool {
+            true
+        }
+        async fn resolve(&self) -> Result<ResolvedTrack, String> {
+            let context = serde_json::json!({ "visitorData": self.visitor_data });
+            let mut last_error = String::from("No clients available");
+            for client in &self.clients {
+                let name = client.name().to_string();
+                let url = match client
+                    .get_track_url(
+                        &self.identifier,
+                        &context,
+                        self.cipher_manager.clone(),
+                        self.oauth.clone(),
+                    )
+                    .await
+                {
+                    Ok(Some(url)) => {
+                        info!(
+                            "YoutubeTrack: resolved '{}' using '{name}'",
+                            self.identifier
+                        );
+                        url
+                    }
+                    Ok(None) => {
+                        debug!(
+                            "YoutubeTrack: client '{name}' returned no URL for '{}'",
+                            self.identifier
+                        );
+                        continue;
+                    }
+                    Err(e) => {
+                        warn!(
+                            "YoutubeTrack: client '{name}' failed for '{}': {e}",
+                            self.identifier
+                        );
+                        last_error = e.to_string();
+                        continue;
+                    }
+                };
+                let is_hls = url.contains(".m3u8") || url.contains("/playlist");
+                let hint = Some(detect_audio_kind(&url, is_hls));
+                let proxy = self.proxy.clone();
+                let local_addr = self.local_addr;
+                let cipher = self.cipher_manager.clone();
+                let url_clone = url.clone();
+                let name_clone = name.clone();
+                match create_reader(&url_clone, &name_clone, local_addr, proxy, cipher).await {
+                    Ok(reader) => return Ok(ResolvedTrack::new(reader, hint)),
+                    Err(e) => {
+                        warn!("YoutubeTrack: reader failed for '{name}': {e} — trying next client");
+                        last_error = e.to_string();
+                        continue;
+                    }
                 }
             }
+            error!(
+                "YoutubeTrack: all clients failed for '{}': {last_error}",
+                self.identifier
+            );
+            Err(format!("All clients failed: {last_error}"))
         }
-        error!(
-            "YoutubeTrack: all clients failed for '{}': {last_error}",
-            self.identifier
-        );
-        Err(format!("All clients failed: {last_error}"))
+    }
+    fn is_playability_error(msg: &str) -> bool {
+        msg.contains("This video ")
+            || msg.contains("This is a private video")
+            || msg.contains("This trailer cannot be loaded")
     }
 }
-fn is_playability_error(msg: &str) -> bool {
-    msg.contains("This video ")
-        || msg.contains("This is a private video")
-        || msg.contains("This trailer cannot be loaded")
-}
-}
-use std::sync::Arc;
-use async_trait::async_trait;
-use regex::Regex;
-use serde_json::{Value, json};
-use tokio::sync::RwLock;
-use tracing::{debug, warn};
 use crate::{
     common::types::SharedRw,
     config::sources::YouTubeConfig,
     protocol::tracks::*,
     sources::{SourcePlugin, playable_track::BoxedTrack},
 };
+use async_trait::async_trait;
+use regex::Regex;
+use serde_json::{Value, json};
+use std::sync::Arc;
+use tokio::sync::RwLock;
+use tracing::{debug, warn};
 pub mod clients;
 pub mod hls;
 use cipher::YouTubeCipherManager;

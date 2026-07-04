@@ -1,14 +1,3 @@
-use std::io::ErrorKind;
-use flume::Receiver;
-use symphonia::core::{
-    audio::SampleBuffer,
-    codecs::Decoder,
-    errors::Error,
-    formats::{FormatReader, SeekMode, SeekTo},
-    io::MediaSource,
-    units::Time,
-};
-use tracing::{Level, debug, span, warn};
 use crate::{
     audio::{
         AudioFrame,
@@ -20,6 +9,17 @@ use crate::{
     common::types::AudioFormat,
     config::player::{PlayerConfig, ResamplingQuality},
 };
+use flume::Receiver;
+use std::io::ErrorKind;
+use symphonia::core::{
+    audio::SampleBuffer,
+    codecs::Decoder,
+    errors::Error,
+    formats::{FormatReader, SeekMode, SeekTo},
+    io::MediaSource,
+    units::Time,
+};
+use tracing::{Level, debug, span, warn};
 #[derive(Debug, Clone, PartialEq)]
 pub enum DecoderCommand {
     Seek(u64),

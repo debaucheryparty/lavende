@@ -1,12 +1,12 @@
-use std::sync::Arc;
-use async_trait::async_trait;
-use regex::Regex;
-use tracing::debug;
 use crate::{
     config::sources::FloweryConfig,
     protocol::tracks::{LoadResult, Track, TrackInfo},
     sources::{SourcePlugin, http::HttpTrack, playable_track::BoxedTrack},
 };
+use async_trait::async_trait;
+use regex::Regex;
+use std::sync::Arc;
+use tracing::debug;
 pub struct FlowerySource {
     config: FloweryConfig,
     search_prefixes: Vec<String>,

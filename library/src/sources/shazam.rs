@@ -1,13 +1,13 @@
-use std::sync::{Arc, OnceLock};
-use async_trait::async_trait;
-use regex::Regex;
-use reqwest::header::USER_AGENT;
-use serde_json::Value;
-use tracing::error;
 use crate::{
     protocol::tracks::{LoadResult, Track, TrackInfo},
     sources::{SourcePlugin, playable_track::BoxedTrack},
 };
+use async_trait::async_trait;
+use regex::Regex;
+use reqwest::header::USER_AGENT;
+use serde_json::Value;
+use std::sync::{Arc, OnceLock};
+use tracing::error;
 const SEARCH_URL: &str = "https://www.shazam.com/services/amapi/v1/catalog/US/search";
 fn url_regex() -> &'static Regex {
     static REGEX: OnceLock<Regex> = OnceLock::new();

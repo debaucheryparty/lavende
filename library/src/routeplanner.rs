@@ -1,17 +1,17 @@
+use crate::protocol::{
+    BalancingIpDetails,
+    routeplanner::{FailingAddress, IpBlock, RotatingIpDetails, RoutePlannerStatus},
+};
+use async_trait::async_trait;
+use ipnet::IpNet;
+use rand::Rng;
 use std::{
     collections::HashMap,
     net::{IpAddr, Ipv4Addr, Ipv6Addr},
     str::FromStr,
     sync::Mutex,
 };
-use async_trait::async_trait;
-use ipnet::IpNet;
-use rand::Rng;
 use tracing::{debug, info};
-use crate::protocol::{
-    BalancingIpDetails,
-    routeplanner::{FailingAddress, IpBlock, RotatingIpDetails, RoutePlannerStatus},
-};
 #[async_trait]
 pub trait RoutePlanner: Send + Sync {
     fn get_status(&self) -> RoutePlannerStatus;

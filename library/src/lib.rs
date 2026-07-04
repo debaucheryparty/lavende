@@ -1,23 +1,23 @@
-pub mod utils;
-pub mod gateway;
-pub mod transport;
-pub mod pipeline;
-pub mod events;
-pub mod player;
+pub mod audio;
 pub mod common;
 pub mod config;
+pub mod events;
+pub mod gateway;
+pub mod pipeline;
+pub mod player;
 pub mod protocol;
 pub mod routeplanner;
 pub mod sources;
-pub mod audio;
+pub mod transport;
+pub mod utils;
 
 pub use player::Player;
 
-use std::sync::OnceLock;
-use sources::manager::SourceManager;
 use config::AppConfig;
+use sources::manager::SourceManager;
 use std::fs;
 use std::path::Path;
+use std::sync::OnceLock;
 
 static SOURCE_MANAGER: OnceLock<SourceManager> = OnceLock::new();
 
