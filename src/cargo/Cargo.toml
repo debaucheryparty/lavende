@@ -1,6 +1,6 @@
 [package]
 name = "lavende"
-version = "0.1.12"
+version = "0.1.13"
 edition = "2024"
 description = "In-process Discord voice connection and playback engine"
 readme = "../../README.md"

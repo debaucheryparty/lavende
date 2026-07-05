@@ -4,9 +4,8 @@ build-backend = "maturin"
 
 [project]
 name = "lavende"
-version = "0.1.12"
+version = "0.1.13"
 description = "In-process Discord voice connection and playback engine"
-readme = "https://github.com/debaucheryparty/lavende/blob/master/README.md"
 requires-python = ">=3.8"
 license = { text = "Apache-2.0" }
 authors = [
