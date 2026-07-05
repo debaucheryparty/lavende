@@ -9,8 +9,8 @@ package lavende
 #include "lavende.h"
 #include <stdlib.h>
 
-__declspec(dllexport) void goSendToShard(char* guildId, char* payloadJson);
-__declspec(dllexport) void goOnEvent(char* eventJson);
+extern void goSendToShard(char* guildId, char* payloadJson);
+extern void goOnEvent(char* eventJson);
 
 static void c_send_to_shard(const char* guild_id, const char* payload_json) {
     goSendToShard((char*)guild_id, (char*)payload_json);
