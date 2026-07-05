@@ -2,16 +2,15 @@ package lavende
 
 /*
 #cgo CFLAGS: -I.
-#cgo LDFLAGS: -L. -llavende_go -lm -ldl -lpthread
-#if defined(__APPLE__)
-#cgo LDFLAGS: -framework Security -framework CoreFoundation -framework SystemConfiguration
-#endif
+#cgo windows LDFLAGS: -L. -llavende_go
+#cgo !windows LDFLAGS: -L. -llavende_go -lm -ldl -lpthread
+#cgo darwin LDFLAGS: -framework Security -framework CoreFoundation -framework SystemConfiguration
 
 #include "lavende.h"
 #include <stdlib.h>
 
-extern void goSendToShard(char* guildId, char* payloadJson);
-extern void goOnEvent(char* eventJson);
+__declspec(dllexport) void goSendToShard(char* guildId, char* payloadJson);
+__declspec(dllexport) void goOnEvent(char* eventJson);
 
 static void c_send_to_shard(const char* guild_id, const char* payload_json) {
     goSendToShard((char*)guild_id, (char*)payload_json);
@@ -43,7 +42,6 @@ var (
 	onEventFunc     func(event json.RawMessage)
 )
 
-//export goSendToShard
 func goSendToShard(guildId *C.char, payloadJson *C.char) {
 	if sendToShardFunc != nil {
 		gId := C.GoString(guildId)
@@ -52,7 +50,6 @@ func goSendToShard(guildId *C.char, payloadJson *C.char) {
 	}
 }
 
-//export goOnEvent
 func goOnEvent(eventJson *C.char) {
 	if onEventFunc != nil {
 		eJson := C.GoString(eventJson)
@@ -69,6 +66,7 @@ type TrackInfo struct {
 	IsSeekable bool    `json:"isSeekable"`
 	Uri        string  `json:"uri"`
 	SourceName string  `json:"sourceName"`
+	Position   int64   `json:"position"`
 	ArtworkUrl *string `json:"artworkUrl,omitempty"`
 	Isrc       *string `json:"isrc,omitempty"`
 }
@@ -659,7 +657,18 @@ func (p *Player) Play(options *PlayOptions) error {
 	p.Playing = true
 	C.lavende_player_set_volume(p.ptr, C.uint32_t(p.Volume))
 
-	cErr := C.lavende_player_play(p.ptr)
+	trackData := TrackData{
+		Encoded: p.Queue.Current.Encoded,
+		Info:    p.Queue.Current.Info,
+	}
+	trackBytes, err := json.Marshal(trackData)
+	if err != nil {
+		return err
+	}
+	cTrackJson := C.CString(string(trackBytes))
+	defer C.free(unsafe.Pointer(cTrackJson))
+
+	cErr := C.lavende_player_play_track(p.ptr, cTrackJson)
 	if cErr != nil {
 		defer C.lavende_free_string(cErr)
 		err := errors.New(C.GoString(cErr))
@@ -853,6 +862,11 @@ func (m *LavendeManager) SendRawData(packet map[string]interface{}) {
 	if t == "" || d == nil {
 		return
 	}
+
+	b, _ := json.Marshal(packet)
+	cJson := C.CString(string(b))
+	defer C.free(unsafe.Pointer(cJson))
+	C.lavende_manager_send_raw_data(m.ptr, cJson)
 
 	if t == "VOICE_STATE_UPDATE" {
 		if d["user_id"] == m.Client.Id {

@@ -1,17 +1,15 @@
 use libc::c_char;
 use once_cell::sync::Lazy;
 use std::ffi::{CStr, CString};
-use std::sync::Arc;
 use tokio::runtime::Runtime;
 
-use lavende::{LavendeEvent, LavendeManager, LavendePlayer};
+use lavende::{LavendeManager, LavendePlayer};
 
 static RUNTIME: Lazy<Runtime> = Lazy::new(|| Runtime::new().unwrap());
 
 pub type SendToShardCb = extern "C" fn(*const c_char, *const c_char);
 pub type EventCb = extern "C" fn(*const c_char);
 
-// Helper to convert C string to Rust string
 fn cstr_to_string(c_str: *const c_char) -> String {
     if c_str.is_null() {
         return String::new();
@@ -19,7 +17,6 @@ fn cstr_to_string(c_str: *const c_char) -> String {
     unsafe { CStr::from_ptr(c_str).to_string_lossy().into_owned() }
 }
 
-// Helper to convert Rust string to C string
 fn string_to_cstr(s: String) -> *mut c_char {
     CString::new(s).unwrap().into_raw()
 }
@@ -32,10 +29,6 @@ pub extern "C" fn lavende_free_string(s: *mut c_char) {
         }
     }
 }
-
-// =======================
-// LavendeManager
-// =======================
 
 #[no_mangle]
 pub extern "C" fn lavende_manager_new(
@@ -125,10 +118,6 @@ pub extern "C" fn lavende_manager_send_raw_data(
     }
 }
 
-// =======================
-// LavendePlayer
-// =======================
-
 #[no_mangle]
 pub extern "C" fn lavende_player_free(ptr: *mut LavendePlayer) {
     if !ptr.is_null() {
@@ -193,6 +182,34 @@ pub extern "C" fn lavende_player_play(ptr: *mut LavendePlayer) -> *mut c_char {
         return std::ptr::null_mut();
     }
     let player = unsafe { &*ptr };
+    let result = RUNTIME.block_on(async { player.play().await });
+    match result {
+        Ok(_) => std::ptr::null_mut(),
+        Err(e) => string_to_cstr(e),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn lavende_player_play_track(
+    ptr: *mut LavendePlayer,
+    track_json: *const c_char,
+) -> *mut c_char {
+    if ptr.is_null() {
+        return std::ptr::null_mut();
+    }
+    let player = unsafe { &*ptr };
+    let track_json_str = cstr_to_string(track_json);
+    let track: Result<lavende::Track, _> = serde_json::from_str(&track_json_str);
+    if let Err(e) = track {
+        return string_to_cstr(format!("Failed to parse track: {}", e));
+    }
+    let track = track.unwrap();
+    
+    RUNTIME.block_on(async {
+        let mut q = player.queue.write().await;
+        q.current = Some(track);
+    });
+
     let result = RUNTIME.block_on(async { player.play().await });
     match result {
         Ok(_) => std::ptr::null_mut(),
@@ -296,7 +313,6 @@ pub extern "C" fn lavende_player_is_paused(ptr: *mut LavendePlayer) -> bool {
     player.is_paused()
 }
 
-// Blocking search call, suitable for CGO running in a goroutine
 #[no_mangle]
 pub extern "C" fn lavende_player_search(
     ptr: *mut LavendePlayer,

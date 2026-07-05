@@ -41,6 +41,8 @@ void lavende_player_destroy(LavendePlayer *ptr, const char *reason);
 
 char *lavende_player_play(LavendePlayer *ptr);
 
+char *lavende_player_play_track(LavendePlayer *ptr, const char *track_json);
+
 void lavende_player_pause(LavendePlayer *ptr, bool state);
 
 void lavende_player_resume(LavendePlayer *ptr);
