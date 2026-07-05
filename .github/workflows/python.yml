@@ -91,7 +91,7 @@ jobs:
         with:
           working-directory: ./src/python
           target: ${{ matrix.target }}
-          args: --release --out dist
+          args: --release --out dist --zig
           sccache: 'true'
           manylinux: auto
 
