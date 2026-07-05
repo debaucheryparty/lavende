@@ -1,36 +1,47 @@
-# Architecture & Core Concepts
+# System Architecture
 
-The Lavende ecosystem is fundamentally split into two layers: the **Rust Core Engine** and the **Language Wrappers**.
+Understanding the internal architecture of Lavende is crucial for optimizing your application and effectively utilizing the API. The system operates on a dual-layer architecture: a highly concurrent **Native Rust Core**, and a lightweight **Language Interop Layer**.
 
-## The Rust Core Engine
+---
 
-At the heart of Lavende is `liblavende` (or `lavende_go.a` for Golang), a high-performance native library written in Rust.
+## The Native Rust Core
 
-### Responsibilities
-1. **Discord Voice UDP Streaming**: It establishes UDP connections to Discord's voice servers, handles RTP packet encryption (Sodium/XChaCha20), and maintains the streaming heartbeat.
-2. **Audio Decoding**: It decodes Opus, MP3, FLAC, and other formats natively.
-3. **Digital Signal Processing (DSP)**: It applies real-time audio manipulation (Nightcore, Vaporwave, Equalizers, Bassboost, 3D Rotation).
-4. **Track Resolving**: It interfaces with external APIs (like YouTube and SoundCloud) to resolve queries into streamable audio formats.
+The core engine (`liblavende`) handles operations that are typically bottlenecks in managed languages (like Node.js, Python, or Go). 
 
-## The FFI Layer (Foreign Function Interface)
+### 1. The Gateway Orchestrator
+Unlike traditional libraries that require an external JVM application, Lavende embeds its own connection orchestrator. Once it receives raw Discord `VOICE_SERVER_UPDATE` and `VOICE_STATE_UPDATE` packets, the orchestrator:
+- Resolves the Guild's designated Voice WebSocket endpoint.
+- Negotiates the connection and performs the IP Discovery phase.
+- Exchanges the secret key used for encrypting RTP packets using `xsalsa20_poly1305` encryption.
 
-Because Rust cannot natively run inside Node.js, Python, or Golang without a bridge, Lavende uses FFI (and CGO for Golang).
+### 2. Audio Processing Pipeline
+When a track is requested, the pipeline executes the following sequence:
+1. **Resolution**: Queries external APIs (e.g., YouTube, SoundCloud) to find streamable URLs.
+2. **Decoding**: Pulls bytes over HTTPS and decodes formats (Opus, AAC, MP3) into raw PCM data.
+3. **DSP Engine**: Passes the raw PCM data through the Digital Signal Processing chain (applying Equalizers, time-stretching, etc.).
+4. **Encoding & Transport**: Re-encodes the manipulated PCM data into Discord-compliant 48kHz Opus frames and ships them over the UDP socket.
 
-When you call `player.play()` in Node.js, the wrapper executes a C-binding `lavende_player_play(player_ptr)`, passing the pointer down to the Rust core. This ensures that the heavy lifting (audio encoding and network I/O) happens in Rust, preventing the Node.js event loop or Python GIL from blocking.
+> [!IMPORTANT]
+> Because all of this occurs entirely within Rust's highly optimized runtime, the garbage collector of your host language is never stressed. The audio stream remains flawless and un-interrupted regardless of what your main application thread is doing.
 
-## The Manager System
+---
 
-Across all language wrappers, the architecture dictates a `LavendeManager`.
+## The FFI Interop Layer
 
-The Manager acts as the orchestrator. Because Lavende handles voice connections, it needs to know when Discord sends Gateway events like `VOICE_STATE_UPDATE` and `VOICE_SERVER_UPDATE`.
+To communicate with the Rust Core, Lavende utilizes Foreign Function Interfaces (FFI). 
 
-You pipe these raw JSON events into the `LavendeManager`. The manager decodes them, identifies the Guild ID, and routes the server endpoint and token to the respective `Player` instance in the Rust core.
+When you execute a command in your language (e.g., `player.pause(true)` in Python), the following occurs:
+1. The wrapper marshals the request into a C-compatible format.
+2. The pointer is passed across the FFI boundary to a `#[no_mangle] extern "C"` function in Rust.
+3. Rust securely acquires the lock on the specific `LavendePlayer` instance in memory and mutates its state.
+4. If an event occurs in Rust (e.g., a track finishes), it triggers a C-callback mapped to your language's event loop, seamlessly resuming execution in your environment.
 
-## The Player System
+---
 
-A `Player` is an instance attached to a specific Discord Guild. 
+## Lifecycle of a Stream
 
-- **State Management**: It tracks whether it is playing, paused, or buffering.
-- **Queue**: A sub-component that manages single tracks or playlists.
-- **FilterManager**: A sub-component that allows applying dynamic audio filters on the fly.
-- **Event Emitters**: It emits lifecycle events back across the FFI boundary (`trackStart`, `trackEnd`, `queueEnd`, `error`), allowing your bot to react (e.g., sending a "Now Playing" message).
+1. **Manager Initialization**: You initialize `LavendeManager`. The FFI boundary is established.
+2. **Event Routing**: Your bot connects to Discord. You pipe all raw gateway payloads to the `LavendeManager`.
+3. **Player Instantiation**: A user runs `/play`. You request a `Player` for the guild. Rust allocates memory for the audio session.
+4. **Track Execution**: You push a track into the Queue. Rust automatically connects to the UDP socket and begins streaming.
+5. **Teardown**: The queue empties, or the user runs `/stop`. The `Player` is destroyed, and the Rust core frees the allocated memory safely.

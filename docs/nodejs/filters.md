@@ -1,68 +1,93 @@
-# Filters & DSP
+# Node.js Digital Signal Processing (DSP)
 
-One of Lavende's most powerful features is its internal Digital Signal Processing (DSP) engine. Unlike older bot implementations that spin up external FFmpeg processes to apply audio filters (causing high CPU usage), Lavende manipulates the audio stream natively in Rust.
+The `FilterManager` gives you raw access to Lavende's native DSP pipeline. Because the audio is mutated directly in Rust before RTP packaging, you can apply complex filters without the high CPU cycles usually demanded by Node.js or `ffmpeg`.
 
-## Using the FilterManager
+---
 
-Every player has a `FilterManager` attached to it. Changes made here apply instantly to the active audio stream.
+## Accessing the Filter Manager
 
-### 15-Band Equalizer
-
-Boost or cut specific frequency bands (ranging from `0` to `14`).
+Every `Player` instance manages its own `FilterManager`.
 
 ```javascript
-// Example: Bassboost
+const fm = player.filterManager;
+```
+
+---
+
+## Available Filters
+
+### 1. 15-Band Equalizer
+
+The equalizer lets you boost or cut specific frequency bands (ranging from `0` to `14`).
+
+| Parameter | Type | Range | Description |
+| :--- | :--- | :--- | :--- |
+| `band` | `Number` | `0` to `14` | The specific frequency band. |
+| `gain` | `Number` | `-0.25` to `1.0` | The multiplier for the frequency. |
+
+**Example: Applying a Bassboost**
+```javascript
 player.filterManager.equalizerBands = [
-    { band: 0, gain: 0.25 }, // Low frequencies
+    { band: 0, gain: 0.25 },
     { band: 1, gain: 0.20 },
     { band: 2, gain: 0.10 }
 ];
+// Must be called explicitly to flush changes to Rust
 await player.filterManager.applyPlayerFilters();
 ```
 
-### Nightcore (Speed & Pitch)
+### 2. Time-Stretching (Nightcore / Vaporwave)
 
-Adjust the time-stretching and pitch-shifting without affecting each other.
+You can independently manipulate the speed and pitch of the audio stream.
 
+| Method | Argument | Range | Description |
+| :--- | :--- | :--- | :--- |
+| `setSpeed(Number)` | `speed` | `0.01` - `10.0` | > 1.0 speeds up; < 1.0 slows down. |
+| `setPitch(Number)` | `pitch` | `0.01` - `10.0` | > 1.0 raises pitch; < 1.0 lowers pitch. |
+
+**Example: Nightcore**
 ```javascript
-// Speed up the track and increase the pitch
-await player.filterManager.setSpeed(1.2);
-await player.filterManager.setPitch(1.3);
-
-// Track state for your own logic
-player.filterManager.filters.nightcore = true;
+await player.filterManager.setSpeed(1.18);
+await player.filterManager.setPitch(1.30);
 ```
 
-### Vaporwave (Slowed + Reverb emulation)
-
-Slow down the track and lower the pitch to create a vaporwave aesthetic.
-
+**Example: Vaporwave**
 ```javascript
 await player.filterManager.setSpeed(0.85);
-await player.filterManager.setPitch(0.8);
+await player.filterManager.setPitch(0.80);
 ```
 
-### 3D Audio Rotation
+### 3. Spatial 3D Audio
 
-Create an 8D-audio effect by panning the sound around the listener. The parameter dictates the Hz (speed of rotation).
+The rotation filter applies an oscillating panning effect to simulate the audio orbiting the listener's head.
+
+| Method | Argument | Description |
+| :--- | :--- | :--- |
+| `toggleRotation(Number)` | `hz` | The speed of the rotation in Hertz. |
 
 ```javascript
+// Rotate the audio at 0.3 Hz
 await player.filterManager.toggleRotation(0.3);
 ```
 
-### Stereo / Mono output
+### 4. Channel Forcing
 
-Force the audio output channels.
+Force the output into a specific channel configuration.
 
 ```javascript
 await player.filterManager.setAudioOutput('mono');
-await player.filterManager.setAudioOutput('stereo'); // default
+await player.filterManager.setAudioOutput('stereo');
 ```
 
-## Resetting Filters
+---
 
-To instantly clear all active DSP effects and return to the raw stream:
+## Resetting State
+
+To strip all active filters and return the stream to its original, unmodified state instantly:
 
 ```javascript
 await player.filterManager.resetFilters();
 ```
+
+> [!WARNING]
+> Depending on network latency and Discord's internal buffer, it may take between 100ms to 500ms for a filter change to audibly reflect to users in the voice channel.
