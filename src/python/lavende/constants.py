@@ -1,6 +1,5 @@
 from enum import Enum
 
-
 class DebugEvents(str, Enum):
     SET_SPONSOR_BLOCK = "SetSponsorBlock"
     DELETE_SPONSOR_BLOCK = "DeleteSponsorBlock"
@@ -47,7 +46,6 @@ class DebugEvents(str, Enum):
     PLAYER_CHANGE_NODE_FAIL_NO_ELIGIBLE_NODE = "PlayerChangeNodeFailNoEligibleNode"
     PLAYER_CHANGE_NODE_FAIL = "PlayerChangeNodeFail"
 
-
 class DestroyReasons(str, Enum):
     QUEUE_EMPTY = "QueueEmpty"
     NODE_DESTROY = "NodeDestroy"
@@ -64,11 +62,9 @@ class DestroyReasons(str, Enum):
     TRACK_ERROR_MAX_TRACKS_ERRORED_PER_TIME = "TrackErrorMaxTracksErroredPerTime"
     TRACK_STUCK_MAX_TRACKS_ERRORED_PER_TIME = "TrackStuckMaxTracksErroredPerTime"
 
-
 class DisconnectReasons(str, Enum):
     DISCONNECTED = "Disconnected"
     DISCONNECT_ALL_NODES = "DisconnectAllNodes"
-
 
 VALID_SPONSOR_BLOCKS = [
     "sponsor",
