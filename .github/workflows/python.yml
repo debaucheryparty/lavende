@@ -93,7 +93,7 @@ jobs:
           target: ${{ matrix.target }}
           args: --release --out dist
           sccache: 'true'
-          manylinux: auto
+          manylinux: 2_28
           before-script-linux: |
            if command -v yum &> /dev/null; then
             yum install -y opus-devel pkgconfig
@@ -103,7 +103,7 @@ jobs:
             apk add opus-dev pkgconfig
            fi
         env:
-         CFLAGS_aarch64_unknown_linux_gnu: "-march=armv8-a -D__ARM_ARCH=8"
+         CFLAGS_aarch64_unknown_linux_gnu: "-march=armv8-a"
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
