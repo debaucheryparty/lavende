@@ -3,27 +3,39 @@
 **In-process Discord voice connection and audio playback engine**
 
 [![npm version](https://img.shields.io/npm/v/lavende.svg)](https://www.npmjs.com/package/lavende)
+[![PyPI version](https://img.shields.io/pypi/v/lavende.svg)](https://pypi.org/project/lavende/)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 ## Features
 
 - **Native Performance** - Written in Rust for maximum speed and efficiency
-- **No Separate Server** - Runs directly in your Node.js process
+- **No Separate Server** - Runs directly in your Node.js or Python process
 - **Audio Sources** - YouTube, Spotify, SoundCloud, Apple Music, Deezer, and more
 - **Audio Effects** - Equalizer, timescale, rotation, vibrato, tremolo, reverb, and more
 - **Low Latency** - Direct function calls instead of REST/WebSocket overhead
 - **DAVE E2EE** - Discord's end-to-end encryption support
 - **Zero Dependencies** - Prebuilt binaries for all platforms
+- **Multi-Language** - Available for Node.js and Python
 
 ## Installation
+
+### Node.js
 
 ```bash
 npm install lavende
 ```
 
+### Python
+
+```bash
+pip install lavende
+```
+
 Lavende automatically downloads the correct prebuilt binary for your platform (Windows, macOS, Linux).
 
 ## Quick Start
+
+### Node.js
 
 ```javascript
 const { Client, GatewayIntentBits } = require('discord.js');
@@ -75,10 +87,57 @@ client.on('messageCreate', async (message) => {
 client.login('YOUR_BOT_TOKEN');
 ```
 
+### Python
+
+```python
+import asyncio
+import discord
+from lavende import LavendeManager, load
+
+client = discord.Client(intents=discord.Intents.all())
+
+def send_to_shard(guild_id: str, payload: dict):
+    guild = client.get_guild(int(guild_id))
+    if guild:
+        asyncio.create_task(guild.shard.ws.send_as_json(payload))
+
+manager = LavendeManager(
+    send_to_shard=send_to_shard,
+    client={"id": "YOUR_BOT_CLIENT_ID"}
+)
+
+@client.event
+async def on_ready():
+    print(f'Bot is ready as {client.user}')
+    manager.init({"id": str(client.user.id), "username": client.user.name})
+
+@client.event
+async def on_raw_dispatch(packet):
+    manager.send_raw_data(packet)
+
+@client.event
+async def on_message(message):
+    if message.content == '!play':
+        player = manager.create_player({
+            "guild_id": str(message.guild.id),
+            "voice_channel_id": str(message.author.voice.channel.id),
+            "text_channel_id": str(message.channel.id)
+        })
+        
+        result = await player.search('your song query', message.author)
+        player.queue.add(result["tracks"][0])
+        
+        await player.connect()
+        await player.play()
+
+client.run('YOUR_BOT_TOKEN')
+```
+
 ## Documentation
 
 ### Manager
 
+**Node.js:**
 ```javascript
 const manager = new LavendeManager({
   sendToShard: (guildId, payload) => void,
@@ -90,8 +149,21 @@ manager.createPlayer(options);
 manager.destroyPlayer(guildId);
 ```
 
+**Python:**
+```python
+manager = LavendeManager(
+    send_to_shard=lambda guild_id, payload: None,
+    client={"id": "...", "username": "..."}
+)
+
+manager.init(client_data)
+manager.create_player(options)
+manager.destroy_player(guild_id)
+```
+
 ### Player
 
+**Node.js:**
 ```javascript
 const player = manager.createPlayer({
   guildId: string,
@@ -124,14 +196,57 @@ await player.filterManager.resetFilters();
 const result = await player.search(query, requester);
 ```
 
+**Python:**
+```python
+player = manager.create_player({
+    "guild_id": "...",
+    "voice_channel_id": "...",
+    "text_channel_id": "...",
+    "volume": 100,
+    "self_deaf": True
+})
+
+await player.play(options)
+await player.pause(pause_state)
+await player.resume()
+await player.stop()
+await player.skip()
+await player.seek(position_ms)
+await player.set_volume(volume)
+
+player.queue.add(track)
+player.queue.remove(index)
+player.queue.clear()
+player.queue.shuffle()
+
+await player.filter_manager.set_volume(volume)
+await player.filter_manager.set_speed(speed)
+await player.filter_manager.set_pitch(pitch)
+await player.filter_manager.set_audio_output('mono')
+await player.filter_manager.toggle_rotation()
+await player.filter_manager.reset_filters()
+
+result = await player.search(query, requester)
+```
+
 ### Events
 
+**Node.js:**
 ```javascript
 player.on('trackStart', (player, track) => {});
 player.on('trackEnd', (player, track, reason) => {});
 player.on('queueEnd', (player) => {});
 player.on('error', (player, error) => {});
 player.on('position', (player, position) => {});
+```
+
+**Python:**
+```python
+player.on('track_start', lambda p, t: print(f'Track started: {t}'))
+player.on('track_end', lambda p, t, r: print(f'Track ended: {r}'))
+player.on('queue_end', lambda p: print('Queue ended'))
+player.on('error', lambda p, e: print(f'Error: {e}'))
+player.on('position', lambda p, pos: print(f'Position: {pos}'))
 ```
 
 ## Supported Sources
