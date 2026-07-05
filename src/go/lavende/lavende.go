@@ -42,6 +42,7 @@ var (
 	onEventFunc     func(event json.RawMessage)
 )
 
+//export goSendToShard
 func goSendToShard(guildId *C.char, payloadJson *C.char) {
 	if sendToShardFunc != nil {
 		gId := C.GoString(guildId)
@@ -50,6 +51,7 @@ func goSendToShard(guildId *C.char, payloadJson *C.char) {
 	}
 }
 
+//export goOnEvent
 func goOnEvent(eventJson *C.char) {
 	if onEventFunc != nil {
 		eJson := C.GoString(eventJson)

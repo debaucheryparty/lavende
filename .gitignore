@@ -78,3 +78,9 @@ test-bot/
 src/swift/build/
 src/swift/LavendeSwift/.build/
 src/swift/LavendeSwift/LavendeSwift.xcframework
+
+# Golang examples build
+_examples/golang/bot
+
+# Go static library
+src/go/lavende/liblavende_go.a
