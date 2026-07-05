@@ -1,0 +1,97 @@
+name: Go CI
+
+env:
+  MACOSX_DEPLOYMENT_TARGET: '10.13'
+  CMAKE_POLICY_VERSION_MINIMUM: '3.5'
+
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - 'v*'
+  pull_request:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        settings:
+          - host: windows-latest
+            target: x86_64-pc-windows-msvc
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - host: macos-latest
+            target: x86_64-apple-darwin
+
+    runs-on: ${{ matrix.settings.host }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: ${{ matrix.settings.target }}
+
+      - name: Install system dependencies (Ubuntu)
+        if: matrix.settings.host == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libopus-dev pkg-config cmake
+
+      - name: Install system dependencies (macOS)
+        if: matrix.settings.host == 'macos-latest'
+        run: |
+          brew install opus pkg-config cmake
+
+      - name: Setup MSVC dev environment (Windows)
+        if: matrix.settings.host == 'windows-latest'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install system dependencies (Windows)
+        if: matrix.settings.host == 'windows-latest'
+        shell: pwsh
+        run: |
+          choco install ninja -y
+          $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+          echo "CMAKE_GENERATOR=Ninja" >> $env:GITHUB_ENV
+          echo "OPUS_BUILD_FROM_SOURCE=1" >> $env:GITHUB_ENV
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ matrix.settings.target }}-cargo-${{ hashFiles('src/go/Cargo.toml', 'library/Cargo.toml') }}
+
+      - name: Build Rust static library
+        working-directory: ./src/go
+        run: cargo build --release
+
+      - name: Copy build artifacts to Go package
+        shell: bash
+        run: |
+          mkdir -p src/go/lavende
+          cp src/go/lavende.h src/go/lavende/
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cp target/release/lavende_go.lib src/go/lavende/
+          else
+            cp target/release/liblavende_go.a src/go/lavende/
+          endif
+
+      - name: Verify Go module compiles
+        working-directory: ./src/go/lavende
+        run: go build -v ./...
