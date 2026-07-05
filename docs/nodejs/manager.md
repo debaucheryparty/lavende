@@ -1,18 +1,44 @@
-# The Manager
+# The Node.js Manager
 
-The `LavendeManager` is the central component of the library. It acts as the bridge between Discord's Gateway and the native Rust audio engine.
+The `LavendeManager` is the primary entry point for the Node.js wrapper. It sits at the top level of your application, maintaining references to all active Voice UDP connections and orchestrating the FFI boundary.
 
-## Initialization
+---
 
-You must instantiate the manager once your bot is ready. It requires your bot's client ID, username, and a callback function to send Voice State Update packets back to the Discord gateway.
+## Bootstrapping the Manager
+
+Because Lavende abstracts away the complexities of WebSocket communication, you must provide it with a callback that routes payloads back to Discord's Voice Gateway.
+
+> [!IMPORTANT]
+> The manager must be instantiated globally, preferably inside your `client.once('ready')` block to ensure `client.user` is populated.
+
+### Initialization Parameters
+
+| Parameter | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `sendToShard` | `Function(guildId, payload)` | Yes | A function that routes a raw JSON payload to the correct WebSocket shard. |
+| `client` | `Object` | Yes | An object containing `{ id, username }` of your bot. |
+
+### Example Setup (discord.js)
 
 ```javascript
+const { Client, GatewayIntentBits } = require('discord.js');
 const { LavendeManager } = require('lavende');
+
+const client = new Client({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildVoiceStates,
+    ]
+});
+
+let manager;
 
 client.once('ready', () => {
     manager = new LavendeManager({
         sendToShard: (guildId, payload) => {
-            // Find the shard handling this guild and send the payload
+            // Find the correct shard for this guild and dispatch the payload
             client.guilds.cache.get(guildId)?.shard?.send(payload);
         },
         client: {
@@ -22,21 +48,26 @@ client.once('ready', () => {
     });
     
     manager.init();
+    console.log("Lavende Manager Initialized Successfully");
 });
 ```
 
-## Routing Gateway Events
+---
 
-Lavende does not connect to the Discord Gateway on its own. It relies on your bot to forward raw WebSocket voice events. Specifically, it needs `VOICE_STATE_UPDATE` and `VOICE_SERVER_UPDATE` to establish a UDP connection.
+## Intercepting Gateway Events
 
-Pipe raw events from your client into the manager:
+Lavende requires two specific Discord Gateway events to negotiate a voice connection: `VOICE_STATE_UPDATE` and `VOICE_SERVER_UPDATE`.
+
+You must intercept raw socket payloads and pipe them directly into the manager.
 
 ```javascript
-client.on('raw', (packet) => {
+client.on('raw', async (packet) => {
     if (manager) {
+        // The Rust core will safely ignore non-voice events (like MESSAGE_CREATE)
         manager.sendRawData(packet);
     }
 });
 ```
 
-Without this step, the Rust core will never receive the endpoint and token required to connect to the voice server, and playback will silently hang.
+> [!NOTE]
+> `sendRawData` executes virtually instantaneously. Passing the firehose of raw events into it will not bottleneck your Node.js event loop because unhandled events are discarded immediately at the C-boundary.

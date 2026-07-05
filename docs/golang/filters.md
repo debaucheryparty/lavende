@@ -1,49 +1,93 @@
-# Filters & DSP
+# Golang Digital Signal Processing (DSP)
 
-Lavende for Go uses a CGO boundary to execute complex DSP algorithms inside the Rust core, providing lightning-fast audio manipulation.
+The `FilterManager` is the Go gateway to Lavende's native DSP pipeline. Because audio manipulation is written in high-performance Rust, you can apply extreme time-stretching and equalizers without the crippling CPU footprint of `ffmpeg`.
 
-## Filter Manager
+---
 
-The `FilterManager` is accessible from the `Player` struct.
+## Accessing the Filter Manager
 
-### Equalizers
-
-Apply granular EQ tuning.
+Every `Player` struct contains a `FilterManager` instance.
 
 ```go
+fm := player.FilterManager
+```
+
+---
+
+## Available Filters
+
+### 1. 15-Band Equalizer
+
+The equalizer allows you to boost or cut specific frequency bands (ranging from `0` to `14`).
+
+| Parameter | Type | Range | Description |
+| :--- | :--- | :--- | :--- |
+| `Band` | `int` | `0` to `14` | The specific frequency band. |
+| `Gain` | `float64` | `-0.25` to `1.0` | The multiplier for the frequency. |
+
+**Example: Applying a Bassboost**
+```go
 player.FilterManager.EqualizerBands = []lavende.EqBand{
-    {Band: 0, Gain: 0.25}, 
-    {Band: 1, Gain: 0.15},
+    {Band: 0, Gain: 0.25},
+    {Band: 1, Gain: 0.20},
+    {Band: 2, Gain: 0.10},
 }
+// You must explicitly call Apply to sync changes with Rust
 player.FilterManager.ApplyPlayerFilters()
 ```
 
-### Nightcore & Vaporwave (Time Stretching)
+### 2. Time-Stretching (Nightcore / Vaporwave)
 
-Time stretching manipulates the playback speed and pitch simultaneously or independently.
+You can independently manipulate the speed and pitch of the audio stream.
 
+| Method | Argument | Range | Description |
+| :--- | :--- | :--- | :--- |
+| `SetSpeed(float64)` | `speed` | `0.01` - `10.0` | > 1.0 speeds up; < 1.0 slows down. |
+| `SetPitch(float64)` | `pitch` | `0.01` - `10.0` | > 1.0 raises pitch; < 1.0 lowers pitch. |
+
+**Example: Nightcore**
 ```go
-// Nightcore Example
 player.FilterManager.SetSpeed(1.18)
-player.FilterManager.SetPitch(1.3)
-
-// Vaporwave Example
-player.FilterManager.SetSpeed(0.85)
-player.FilterManager.SetPitch(0.8)
+player.FilterManager.SetPitch(1.30)
 ```
 
-### 3D Spatial Audio
+**Example: Vaporwave**
+```go
+player.FilterManager.SetSpeed(0.85)
+player.FilterManager.SetPitch(0.80)
+```
 
-Simulates sound rotating around the listener's head.
+### 3. Spatial 3D Audio
+
+The rotation filter applies an oscillating panning effect to simulate the audio orbiting the listener's head.
+
+| Method | Argument | Description |
+| :--- | :--- | :--- |
+| `ToggleRotation(float64)` | `hz` | The speed of the rotation in Hertz. |
 
 ```go
+// Rotate the audio at 0.3 Hz
 player.FilterManager.ToggleRotation(0.3)
 ```
 
-### Resetting
+### 4. Channel Forcing
 
-Resetting the filters will wipe the state from the Rust engine immediately.
+Force the output into a specific channel configuration.
+
+```go
+player.FilterManager.SetAudioOutput("mono")
+player.FilterManager.SetAudioOutput("stereo")
+```
+
+---
+
+## Resetting State
+
+To strip all active filters and return the stream to its original, unmodified state instantly:
 
 ```go
 player.FilterManager.ResetFilters()
 ```
+
+> [!WARNING]
+> Because DSP manipulation happens on a deeply buffered native thread, it may take a fraction of a second for filter changes to become audible over the Discord voice stream.

@@ -1,30 +1,43 @@
-# Lavende Ecosystem Documentation
+# Lavende Documentation
 
-Lavende is a lightning-fast, high-performance native audio processing library for Discord bots. It acts as a complete, zero-overhead replacement for traditional external audio nodes (like Lavalink), executing directly inside your bot's process while abstracting the heavy lifting to a highly optimized Rust core.
+Lavende is a high-performance, native audio processing engine tailored for Discord applications. It was engineered from the ground up to replace external JVM-based audio nodes (such as Lavalink) by embedding a highly optimized Rust core directly into your application's process.
 
-## Documentation Structure
+---
 
-This documentation is meticulously structured to cover the entire Lavende ecosystem, from the core architectural concepts to the specifics of each language wrapper.
+## Core Philosophy
 
-- **[Architecture & Core Concepts](./architecture.md)**
-  Understand how the Rust core handles UDP voice streams, the FFI boundary, and the DSP engine.
+Traditional Discord audio bot architectures require maintaining an external server that handles RTP packing, voice socket connections, and audio decoding. This approach introduces significant overhead in deployment, latency, and memory utilization.
 
-- **Language Wrappers**
-  Detailed, component-level documentation for each officially supported language.
-  - **[Node.js](./node/README.md)** (TypeScript / JavaScript)
-  - **[Python](./python/README.md)**
-  - **[Golang](./golang/README.md)**
+Lavende shifts this paradigm by providing a unified binary layer via Foreign Function Interfaces (FFI) and CGO. 
 
-## Why Lavende?
+> [!NOTE]
+> **Key Takeaway**
+> With Lavende, your audio processing runs exactly where your bot runs. You get the memory safety and blistering speed of Rust, combined with the development speed of your preferred high-level language.
 
-Most Discord bots rely on a separate Java process (Lavalink) to handle audio. This creates operational complexity, high memory usage, and latency due to WebSocket IPC overhead. 
+---
 
-Lavende embeds a native Rust audio engine directly into your bot process using Foreign Function Interfaces (FFI) or CGO. 
+## Technical Advantages
 
-### Benefits
-- **Zero Network Overhead**: Audio logic runs in the same process as your bot.
-- **Minimal Footprint**: Operates on a fraction of the memory required by a JVM.
-- **Advanced Native DSP**: Real-time audio filters (Nightcore, Vaporwave, Bassboost, Equalizer, 3D Rotation) processed natively without requiring `ffmpeg`.
-- **Identical API Surface**: The API is standardized across Node.js, Python, and Golang. Switching languages does not require re-learning the audio library.
+| Feature | Description |
+| :--- | :--- |
+| **Zero-IPC Latency** | Audio events and commands bypass external WebSocket layers. Commands execute instantly against the native memory space. |
+| **Micro-Footprint** | Operating without the JVM means memory consumption drops from hundreds of megabytes to mere fractions of that. |
+| **Embedded DSP** | Real-time audio manipulation (Equalizers, spatial audio, time-stretching) is handled natively without shelling out to `ffmpeg`. |
+| **API Symmetry** | The API surface is meticulously standardized. A script written in Python reads almost identically to its Go or Node.js counterpart. |
 
-Choose your language above to get started.
+---
+
+## Documentation Directory
+
+Navigate to your language of choice to explore detailed integration guides, API references, and best practices.
+
+### 1. Conceptual Architecture
+- [**Core Architecture & FFI**](./architecture.md) — Dive into the internals of the Rust bridge and UDP orchestration.
+
+### 2. Language References
+- [**Node.js Integration**](./nodejs/README.md) — Complete guide for V8 / JavaScript environments.
+- [**Python Integration**](./python/README.md) — Complete guide for asyncio-based Python applications.
+- [**Golang Integration**](./golang/README.md) — Complete guide leveraging CGO and goroutines.
+
+> [!TIP]
+> If you are migrating from Lavalink or a similar service, we highly recommend reading the [Architecture](./architecture.md) page first to understand the shift from an external microservice model to an embedded native model.

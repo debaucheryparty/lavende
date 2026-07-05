@@ -1,10 +1,25 @@
-# The Manager
+# The Golang Manager
 
-The `LavendeManager` acts as the primary controller for your Go audio sessions.
+The `LavendeManager` acts as the orchestrator for your audio sessions in Go. It connects your Go code to the internal Rust core via CGO.
 
-## Initialization
+---
 
-You instantiate the manager by providing a configuration struct. Crucially, you must inject a function that takes a raw payload and sends it back to the Discord Gateway.
+## Bootstrapping the Manager
+
+Because Lavende leverages standard Discord voice protocol principles, you must provide it with a mechanism to send payloads back to Discord's Voice Gateway.
+
+> [!IMPORTANT]
+> Initialize the manager once, globally, before your Discord bot starts processing commands.
+
+### Initialization Parameters
+
+| Parameter | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `SendToShard` | `func(guildId string, payload interface{})` | Yes | A function mapping a Guild ID to the corresponding WebSocket shard for writing JSON payloads. |
+| `Client.Id` | `string` | Yes | Your Bot's Application ID. |
+| `Client.Username` | `*string` | Yes | Your Bot's Username. |
+
+### Example Setup (discordgo)
 
 ```go
 import (
@@ -17,7 +32,7 @@ var manager *lavende.LavendeManager
 func initAudio(s *discordgo.Session) {
     opts := lavende.LavendeManagerOptions{
         SendToShard: func(guildId string, payload interface{}) {
-            // Write payload to websocket
+            // Write payload to websocket for the specific shard handling this guild
             _ = s.GatewayWriteStruct(payload)
         },
     }
@@ -26,15 +41,22 @@ func initAudio(s *discordgo.Session) {
 
     manager = lavende.NewLavendeManager(opts)
     manager.Init(nil)
+    
+    fmt.Println("Lavende Manager Initialized")
 }
 ```
 
-## Routing Gateway Events
+---
 
-Because Lavende operates entirely within your bot process, it needs access to Voice state updates. If using `discordgo`, you simply listen to the respective events and marshal them into `manager.SendRawData`.
+## Intercepting Gateway Events
+
+Lavende requires `VOICE_STATE_UPDATE` and `VOICE_SERVER_UPDATE` Discord Gateway events to negotiate the secure UDP voice connection.
+
+You must listen for these events via your Discord library (e.g., `discordgo`) and pipe the raw struct equivalents into the manager.
 
 ```go
 s.AddHandler(func(s *discordgo.Session, v *discordgo.VoiceStateUpdate) {
+    // Only forward if the voice state update is for our bot!
     if manager != nil && v.UserID == s.State.User.ID {
         manager.SendRawData(map[string]interface{}{
             "t": "VOICE_STATE_UPDATE",
@@ -62,4 +84,5 @@ s.AddHandler(func(s *discordgo.Session, v *discordgo.VoiceServerUpdate) {
 })
 ```
 
-Once the Rust core receives both the state update and the server update, it automatically establishes the UDP socket and performs the secret key exchange with Discord.
+> [!NOTE]
+> Once the Rust core receives both the state update and the server update, it will independently establish the UDP socket and perform the secret key exchange, freeing up your Go goroutines.
