@@ -1,7 +1,7 @@
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use std::sync::Arc;
 use serde_json::Value;
+use std::sync::Arc;
 
 #[pyclass(name = "Player")]
 pub struct PyPlayer {
@@ -29,7 +29,7 @@ impl PyPlayer {
         callback: PyObject,
     ) -> PyResult<Bound<'py, PyAny>> {
         let inner = self.inner.clone();
-        
+
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let cb = move |_event_type: &str, payload: Value| {
                 Python::with_gil(|py| {
@@ -38,12 +38,12 @@ impl PyPlayer {
                     }
                 });
             };
-            
+
             inner
                 .play(user_id, channel_id, session_id, token, endpoint, url, cb)
                 .await
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e))?;
-            
+
             Ok(())
         })
     }

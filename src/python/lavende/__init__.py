@@ -18,6 +18,7 @@ from lavende.constants import (
 
 __version__ = "0.1.0"
 
+
 class TrackInfo:
     def __init__(self, data: dict):
         self.title: str = data.get("title", "")
@@ -35,6 +36,7 @@ class TrackInfo:
     def __repr__(self) -> str:
         return f"TrackInfo(title='{self.title}', author='{self.author}')"
 
+
 class Track:
     def __init__(self, data: dict, requester=None):
         self.encoded: str = data.get("encoded", "")
@@ -43,6 +45,7 @@ class Track:
 
     def __repr__(self) -> str:
         return f"Track(title='{self.info.title}', author='{self.info.author}')"
+
 
 class QueueUtils:
     def __init__(self, queue: "Queue"):
@@ -72,6 +75,7 @@ class QueueUtils:
         results = self.filter_tracks(predicate)
         return results[0] if results else None
 
+
 class Queue:
     def __init__(self, guild_id: str):
         self.tracks: List[Track] = []
@@ -84,7 +88,9 @@ class Queue:
     def size(self) -> int:
         return len(self.tracks)
 
-    def add(self, track: Union[Track, List[Track]], index: Optional[int] = None) -> None:
+    def add(
+        self, track: Union[Track, List[Track]], index: Optional[int] = None
+    ) -> None:
         tracks = track if isinstance(track, list) else [track]
         if index is not None:
             for i, t in enumerate(tracks):
@@ -106,6 +112,7 @@ class Queue:
 
     def __repr__(self) -> str:
         return f"Queue(guild_id='{self.guild_id}', size={self.size})"
+
 
 class FilterManager:
     def __init__(self, player: "Player"):
@@ -152,10 +159,30 @@ class FilterManager:
         self, output_type: Literal["mono", "stereo", "left", "right"]
     ) -> "FilterManager":
         channel_mix = {
-            "mono":   {"leftToLeft": 0.5, "leftToRight": 0.5, "rightToLeft": 0.5, "rightToRight": 0.5},
-            "left":   {"leftToLeft": 1,   "leftToRight": 0,   "rightToLeft": 1,   "rightToRight": 0},
-            "right":  {"leftToLeft": 0,   "leftToRight": 1,   "rightToLeft": 0,   "rightToRight": 1},
-            "stereo": {"leftToLeft": 1,   "leftToRight": 0,   "rightToLeft": 0,   "rightToRight": 1},
+            "mono": {
+                "leftToLeft": 0.5,
+                "leftToRight": 0.5,
+                "rightToLeft": 0.5,
+                "rightToRight": 0.5,
+            },
+            "left": {
+                "leftToLeft": 1,
+                "leftToRight": 0,
+                "rightToLeft": 1,
+                "rightToRight": 0,
+            },
+            "right": {
+                "leftToLeft": 0,
+                "leftToRight": 1,
+                "rightToLeft": 0,
+                "rightToRight": 1,
+            },
+            "stereo": {
+                "leftToLeft": 1,
+                "leftToRight": 0,
+                "rightToLeft": 0,
+                "rightToRight": 1,
+            },
         }
         self.data["channelMix"] = channel_mix[output_type]
         self.filters["audio_output"] = output_type
@@ -186,7 +213,9 @@ class FilterManager:
         await self.apply_player_filters()
         return self
 
-    async def toggle_vibrato(self, frequency: float = 10.0, depth: float = 1.0) -> "FilterManager":
+    async def toggle_vibrato(
+        self, frequency: float = 10.0, depth: float = 1.0
+    ) -> "FilterManager":
         if self.filters["vibrato"]:
             self.data.pop("vibrato", None)
         else:
@@ -195,7 +224,9 @@ class FilterManager:
         await self.apply_player_filters()
         return self
 
-    async def toggle_tremolo(self, frequency: float = 4.0, depth: float = 0.8) -> "FilterManager":
+    async def toggle_tremolo(
+        self, frequency: float = 4.0, depth: float = 0.8
+    ) -> "FilterManager":
         if self.filters["tremolo"]:
             self.data.pop("tremolo", None)
         else:
@@ -203,6 +234,7 @@ class FilterManager:
         self.filters["tremolo"] = not self.filters["tremolo"]
         await self.apply_player_filters()
         return self
+
 
 class Player:
     def __init__(self, manager: "LavendeManager", options: Dict[str, Any]):
@@ -221,7 +253,11 @@ class Player:
             "token": None,
             "endpoint": None,
         }
-        self.node = {"session_id": "local-session", "_check_for_sources": False, "_check_for_plugins": False}
+        self.node = {
+            "session_id": "local-session",
+            "_check_for_sources": False,
+            "_check_for_plugins": False,
+        }
         self.play_on_connect: bool = False
         self._data: Dict[str, Any] = {}
         self._event_handlers: Dict[str, list] = {}
@@ -269,9 +305,16 @@ class Player:
 
     def check_play_on_connect(self) -> None:
         s = self.voice_state
-        if s.get("session_id") and s.get("token") and s.get("endpoint") and self.play_on_connect:
+        if (
+            s.get("session_id")
+            and s.get("token")
+            and s.get("endpoint")
+            and self.play_on_connect
+        ):
             self.play_on_connect = False
-            print(f"[Player {self.guild_id}] Delayed play handshake completed, starting playback.")
+            print(
+                f"[Player {self.guild_id}] Delayed play handshake completed, starting playback."
+            )
             asyncio.create_task(self._safe_play())
 
     async def _safe_play(self):
@@ -281,19 +324,33 @@ class Player:
             self.emit("error", self, e)
 
     async def connect(self) -> None:
-        await self.manager.send_to_shard(self.guild_id, {
-            "op": 4,
-            "d": {"guild_id": self.guild_id, "channel_id": self.voice_channel_id,
-                  "self_mute": False, "self_deaf": self.self_deaf},
-        })
+        await self.manager.send_to_shard(
+            self.guild_id,
+            {
+                "op": 4,
+                "d": {
+                    "guild_id": self.guild_id,
+                    "channel_id": self.voice_channel_id,
+                    "self_mute": False,
+                    "self_deaf": self.self_deaf,
+                },
+            },
+        )
 
     async def disconnect(self) -> None:
         self.voice_channel_id = None
-        await self.manager.send_to_shard(self.guild_id, {
-            "op": 4,
-            "d": {"guild_id": self.guild_id, "channel_id": None,
-                  "self_mute": False, "self_deaf": False},
-        })
+        await self.manager.send_to_shard(
+            self.guild_id,
+            {
+                "op": 4,
+                "d": {
+                    "guild_id": self.guild_id,
+                    "channel_id": None,
+                    "self_mute": False,
+                    "self_deaf": False,
+                },
+            },
+        )
         await self.stop()
 
     async def destroy(self, reason: Optional[str] = None) -> None:
@@ -301,7 +358,9 @@ class Player:
         self.emit("player_destroy", self, reason)
         self.manager.players.pop(self.guild_id, None)
 
-    async def search(self, query: Union[str, Dict[str, str]], requester: Any = None) -> Dict[str, Any]:
+    async def search(
+        self, query: Union[str, Dict[str, str]], requester: Any = None
+    ) -> Dict[str, Any]:
         search_str = query if isinstance(query, str) else query.get("query", "")
         return await load(search_str, requester)
 
@@ -331,7 +390,9 @@ class Player:
         endpoint = self.voice_state.get("endpoint")
 
         if not (session_id and token and endpoint):
-            print(f"[Player {self.guild_id}] Handshake not finished. Queued play for when connected.")
+            print(
+                f"[Player {self.guild_id}] Handshake not finished. Queued play for when connected."
+            )
             self.play_on_connect = True
             return
 
@@ -350,7 +411,12 @@ class Player:
                         self.emit("track_start", self, current_track)
                     elif event_type == "trackEnd":
                         self.playing = False
-                        self.emit("track_end", self, current_track, event.get("reason", "FINISHED"))
+                        self.emit(
+                            "track_end",
+                            self,
+                            current_track,
+                            event.get("reason", "FINISHED"),
+                        )
                         asyncio.create_task(self._handle_track_end())
                     elif event_type == "position":
                         self.emit("position", self, event.get("position"))
@@ -429,6 +495,7 @@ class Player:
     def __repr__(self) -> str:
         return f"Player(guild_id='{self.guild_id}', playing={self.playing})"
 
+
 class LavendeManager:
     def __init__(self, send_to_shard: Callable, client: Dict[str, str]):
         self.players: Dict[str, Player] = {}
@@ -486,13 +553,17 @@ class LavendeManager:
             data = packet["d"]
             player = self.players.get(data.get("guild_id"))
             if player:
-                player.set_voice_state({"token": data.get("token"), "endpoint": data.get("endpoint")})
+                player.set_voice_state(
+                    {"token": data.get("token"), "endpoint": data.get("endpoint")}
+                )
                 player.check_play_on_connect()
 
     def __repr__(self) -> str:
         return f"LavendeManager(players={len(self.players)}, client_id='{self.client.get('id')}')"
 
+
 LavendePlayer = Player
+
 
 async def load(identifier: str, requester: Any = None) -> Dict[str, Any]:
     json_str = await _rust_load(identifier)
@@ -514,15 +585,24 @@ async def load(identifier: str, requester: Any = None) -> Dict[str, Any]:
         result["exception"] = data["data"]
     return result
 
+
 __all__ = [
-    "Track", "TrackInfo",
-    "Queue", "QueueUtils",
+    "Track",
+    "TrackInfo",
+    "Queue",
+    "QueueUtils",
     "FilterManager",
-    "Player", "LavendePlayer",
+    "Player",
+    "LavendePlayer",
     "LavendeManager",
     "load",
     "_RustPlayer",
-    "DebugEvents", "DestroyReasons", "DisconnectReasons",
-    "VALID_SPONSOR_BLOCKS", "AUDIO_OUTPUTS_DATA", "EQ_LIST",
-    "DEFAULT_SOURCES", "SOURCE_LINKS_REGEXES",
+    "DebugEvents",
+    "DestroyReasons",
+    "DisconnectReasons",
+    "VALID_SPONSOR_BLOCKS",
+    "AUDIO_OUTPUTS_DATA",
+    "EQ_LIST",
+    "DEFAULT_SOURCES",
+    "SOURCE_LINKS_REGEXES",
 ]

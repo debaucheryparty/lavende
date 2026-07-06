@@ -61,7 +61,7 @@ pub extern "C" fn lavende_manager_listen_events(ptr: *mut LavendeManager, event_
     }
     let manager = unsafe { &*ptr };
     let mut rx = manager.subscribe_events();
-    
+
     RUNTIME.spawn(async move {
         while let Ok(event) = rx.recv().await {
             let json = serde_json::to_string(&event).unwrap_or_else(|_| "{}".to_string());
@@ -142,7 +142,11 @@ pub extern "C" fn lavende_player_connect(
         None
     } else {
         let s = cstr_to_string(channel_id);
-        if s.is_empty() { None } else { Some(s) }
+        if s.is_empty() {
+            None
+        } else {
+            Some(s)
+        }
     };
     RUNTIME.block_on(async {
         player.connect(channel_id_str, self_deaf, self_mute).await;
@@ -204,7 +208,7 @@ pub extern "C" fn lavende_player_play_track(
         return string_to_cstr(format!("Failed to parse track: {}", e));
     }
     let track = track.unwrap();
-    
+
     RUNTIME.block_on(async {
         let mut q = player.queue.write().await;
         q.current = Some(track);

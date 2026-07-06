@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class DebugEvents(str, Enum):
     SET_SPONSOR_BLOCK = "SetSponsorBlock"
     DELETE_SPONSOR_BLOCK = "DeleteSponsorBlock"
@@ -46,6 +47,7 @@ class DebugEvents(str, Enum):
     PLAYER_CHANGE_NODE_FAIL_NO_ELIGIBLE_NODE = "PlayerChangeNodeFailNoEligibleNode"
     PLAYER_CHANGE_NODE_FAIL = "PlayerChangeNodeFail"
 
+
 class DestroyReasons(str, Enum):
     QUEUE_EMPTY = "QueueEmpty"
     NODE_DESTROY = "NodeDestroy"
@@ -62,9 +64,11 @@ class DestroyReasons(str, Enum):
     TRACK_ERROR_MAX_TRACKS_ERRORED_PER_TIME = "TrackErrorMaxTracksErroredPerTime"
     TRACK_STUCK_MAX_TRACKS_ERRORED_PER_TIME = "TrackStuckMaxTracksErroredPerTime"
 
+
 class DisconnectReasons(str, Enum):
     DISCONNECTED = "Disconnected"
     DISCONNECT_ALL_NODES = "DisconnectAllNodes"
+
 
 VALID_SPONSOR_BLOCKS = [
     "sponsor",
@@ -202,46 +206,46 @@ DEFAULT_SOURCES = {
 }
 
 SOURCE_LINKS_REGEXES = {
-    "YoutubeRegex": r'https?:\/\/?(?:www\.)?(?:(m|www)\.)?(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|shorts|playlist\?|watch\?v=|watch\?.+(?:&|&#38;);v=))([a-zA-Z0-9\-_]{11})?(?:(?:\?|&|&#38;)index=((?:\d){1,3}))?(?:(?:\?|&|&#38;)?list=([a-zA-Z\-_0-9]{34}))?(?:\S+)?',
-    "YoutubeMusicRegex": r'https?:\/\/?(?:www\.)?(?:(music|m|www)\.)?(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|shorts|playlist\?|watch\?v=|watch\?.+(?:&|&#38;);v=))([a-zA-Z0-9\-_]{11})?(?:(?:\?|&|&#38;)index=((?:\d){1,3}))?(?:(?:\?|&|&#38;)?list=([a-zA-Z\-_0-9]{34}))?(?:\S+)?',
-    "SoundCloudRegex": r'https?:\/\/(?:on\.)?soundcloud\.com\/',
-    "SoundCloudMobileRegex": r'https?:\/\/(soundcloud\.app\.goo\.gl)\/(\S+)',
-    "bandcamp": r'https?:\/\/?(?:www\.)?([\d|\w]+)\.bandcamp\.com\/(\S+)',
-    "TwitchTv": r'https?:\/\/?(?:www\.)?twitch\.tv\/\w+',
-    "vimeo": r'https?:\/\/(www\.)?vimeo.com\/(?:channels\/(?:\w+\/)?|groups\/([^/]*)\/videos\/|)(\d+)(?:|\/\?)',
-    "mp3Url": r'(https?|ftp|file):\/\/(www.)?(.*?)\.(mp3)$',
-    "m3uUrl": r'(https?|ftp|file):\/\/(www.)?(.*?)\.(m3u)$',
-    "m3u8Url": r'(https?|ftp|file):\/\/(www.)?(.*?)\.(m3u8)$',
-    "mp4Url": r'(https?|ftp|file):\/\/(www.)?(.*?)\.(mp4)$',
-    "m4aUrl": r'(https?|ftp|file):\/\/(www.)?(.*?)\.(m4a)$',
-    "wavUrl": r'(https?|ftp|file):\/\/(www.)?(.*?)\.(wav)$',
-    "aacpUrl": r'(https?|ftp|file):\/\/(www.)?(.*?)\.(aacp)$',
-    "DeezerTrackRegex": r'(https?:\/\/|)?(?:www\.)?deezer\.com\/(?:\w{2}\/)?track\/(\d+)',
-    "DeezerPageLinkRegex": r'(https?:\/\/|)?(?:www\.)?deezer\.page\.link\/(\S+)',
-    "DeezerPlaylistRegex": r'(https?:\/\/|)?(?:www\.)?deezer\.com\/(?:\w{2}\/)?playlist\/(\d+)',
-    "DeezerAlbumRegex": r'(https?:\/\/|)?(?:www\.)?deezer\.com\/(?:\w{2}\/)?album\/(\d+)',
-    "DeezerArtistRegex": r'(https?:\/\/|)?(?:www\.)?deezer\.com\/(?:\w{2}\/)?artist\/(\d+)',
-    "DeezerMixesRegex": r'(https?:\/\/|)?(?:www\.)?deezer\.com\/(?:\w{2}\/)?mixes\/genre\/(\d+)',
-    "DeezerEpisodeRegex": r'(https?:\/\/|)?(?:www\.)?deezer\.com\/(?:\w{2}\/)?episode\/(\d+)',
-    "AllDeezerRegexWithoutPageLink": r'(https?:\/\/|)?(?:www\.)?deezer\.com\/(?:\w{2}\/)?(track|playlist|album|artist|mixes\/genre|episode)\/(\d+)',
-    "AllDeezerRegex": r'((https?:\/\/|)?(?:www\.)?deezer\.com\/(?:\w{2}\/)?(track|playlist|album|artist|mixes\/genre|episode)\/(\d+)|(https?:\/\/|)?(?:www\.)?deezer\.page\.link\/(\S+))',
-    "SpotifySongRegex": r'(https?:\/\/)(www\.)?open\.spotify\.com\/((?P<region>[a-zA-Z-]+)\/)?(user\/(?P<user>[a-zA-Z0-9-_]+)\/)?track\/(?P<identifier>[a-zA-Z0-9-_]+)',
-    "SpotifyPlaylistRegex": r'(https?:\/\/)(www\.)?open\.spotify\.com\/((?P<region>[a-zA-Z-]+)\/)?(user\/(?P<user>[a-zA-Z0-9-_]+)\/)?playlist\/(?P<identifier>[a-zA-Z0-9-_]+)',
-    "SpotifyArtistRegex": r'(https?:\/\/)(www\.)?open\.spotify\.com\/((?P<region>[a-zA-Z-]+)\/)?(user\/(?P<user>[a-zA-Z0-9-_]+)\/)?artist\/(?P<identifier>[a-zA-Z0-9-_]+)',
-    "SpotifyEpisodeRegex": r'(https?:\/\/)(www\.)?open\.spotify\.com\/((?P<region>[a-zA-Z-]+)\/)?(user\/(?P<user>[a-zA-Z0-9-_]+)\/)?episode\/(?P<identifier>[a-zA-Z0-9-_]+)',
-    "SpotifyShowRegex": r'(https?:\/\/)(www\.)?open\.spotify\.com\/((?P<region>[a-zA-Z-]+)\/)?(user\/(?P<user>[a-zA-Z0-9-_]+)\/)?show\/(?P<identifier>[a-zA-Z0-9-_]+)',
-    "SpotifyAlbumRegex": r'(https?:\/\/)(www\.)?open\.spotify\.com\/((?P<region>[a-zA-Z-]+)\/)?(user\/(?P<user>[a-zA-Z0-9-_]+)\/)?album\/(?P<identifier>[a-zA-Z0-9-_]+)',
-    "AllSpotifyRegex": r'(https?:\/\/)(www\.)?open\.spotify\.com\/((?P<region>[a-zA-Z-]+)\/)?(user\/(?P<user>[a-zA-Z0-9-_]+)\/)?(?P<type>track|album|playlist|artist|episode|show)\/(?P<identifier>[a-zA-Z0-9-_]+)',
-    "appleMusic": r'https?:\/\/?(?:www\.)?music\.apple\.com\/(\S+)',
-    "tidal": r'https?:\/\/?(?:www\.)?(?:tidal|listen)\.tidal\.com\/(?P<type>track|album|playlist|artist)\/(?P<identifier>[a-zA-Z0-9-_]+)',
-    "jiosaavn": r'(https?:\/\/)(www\.)?jiosaavn\.com\/(?P<type>song|album|featured|artist)\/([a-zA-Z0-9-_/,]+)',
-    "PandoraTrackRegex": r'^@?(?:https?:\/\/)?(?:www\.)?pandora\.com\/artist\/[\w-]+(?:\/[\w-]+)*\/(?P<identifier>TR[A-Za-z0-9]+)(?:[?#].*)?$',
-    "PandoraAlbumRegex": r'^@?(?:https?:\/\/)?(?:www\.)?pandora\.com\/artist\/[\w-]+(?:\/[\w-]+)*\/(?P<identifier>AL[A-Za-z0-9]+)(?:[?#].*)?$',
-    "PandoraArtistRegex": r'^@?(?:https?:\/\/)?(?:www\.)?pandora\.com\/artist\/[\w-]+\/(?P<identifier>AR[A-Za-z0-9]+)(?:[?#].*)?$',
-    "PandoraPlaylistRegex": r'^@?(?:https?:\/\/)?(?:www\.)?pandora\.com\/playlist\/(?P<identifier>PL:[\d:]+)(?:[?#].*)?$',
-    "AllPandoraRegex": r'^@?(?:https?:\/\/)?(?:www\.)?pandora\.com\/(?:playlist\/(?P<playlistId>PL:[\d:]+)|artist\/[\w-]+(?:\/[\w-]+)*\/(?P<identifier>(?:TR|AL|AR)[A-Za-z0-9]+))(?:[?#].*)?$',
-    "tiktok": r'https:\/\/www\.tiktok\.com\/',
-    "mixcloud": r'https:\/\/www\.mixcloud\.com\/',
-    "musicYandex": r'https:\/\/music\.yandex\.ru\/',
-    "radiohost": r'https?:\/\/[^.\s]+\.radiohost\.de\/(\S+)',
+    "YoutubeRegex": r"https?:\/\/?(?:www\.)?(?:(m|www)\.)?(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|shorts|playlist\?|watch\?v=|watch\?.+(?:&|&#38;);v=))([a-zA-Z0-9\-_]{11})?(?:(?:\?|&|&#38;)index=((?:\d){1,3}))?(?:(?:\?|&|&#38;)?list=([a-zA-Z\-_0-9]{34}))?(?:\S+)?",
+    "YoutubeMusicRegex": r"https?:\/\/?(?:www\.)?(?:(music|m|www)\.)?(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|shorts|playlist\?|watch\?v=|watch\?.+(?:&|&#38;);v=))([a-zA-Z0-9\-_]{11})?(?:(?:\?|&|&#38;)index=((?:\d){1,3}))?(?:(?:\?|&|&#38;)?list=([a-zA-Z\-_0-9]{34}))?(?:\S+)?",
+    "SoundCloudRegex": r"https?:\/\/(?:on\.)?soundcloud\.com\/",
+    "SoundCloudMobileRegex": r"https?:\/\/(soundcloud\.app\.goo\.gl)\/(\S+)",
+    "bandcamp": r"https?:\/\/?(?:www\.)?([\d|\w]+)\.bandcamp\.com\/(\S+)",
+    "TwitchTv": r"https?:\/\/?(?:www\.)?twitch\.tv\/\w+",
+    "vimeo": r"https?:\/\/(www\.)?vimeo.com\/(?:channels\/(?:\w+\/)?|groups\/([^/]*)\/videos\/|)(\d+)(?:|\/\?)",
+    "mp3Url": r"(https?|ftp|file):\/\/(www.)?(.*?)\.(mp3)$",
+    "m3uUrl": r"(https?|ftp|file):\/\/(www.)?(.*?)\.(m3u)$",
+    "m3u8Url": r"(https?|ftp|file):\/\/(www.)?(.*?)\.(m3u8)$",
+    "mp4Url": r"(https?|ftp|file):\/\/(www.)?(.*?)\.(mp4)$",
+    "m4aUrl": r"(https?|ftp|file):\/\/(www.)?(.*?)\.(m4a)$",
+    "wavUrl": r"(https?|ftp|file):\/\/(www.)?(.*?)\.(wav)$",
+    "aacpUrl": r"(https?|ftp|file):\/\/(www.)?(.*?)\.(aacp)$",
+    "DeezerTrackRegex": r"(https?:\/\/|)?(?:www\.)?deezer\.com\/(?:\w{2}\/)?track\/(\d+)",
+    "DeezerPageLinkRegex": r"(https?:\/\/|)?(?:www\.)?deezer\.page\.link\/(\S+)",
+    "DeezerPlaylistRegex": r"(https?:\/\/|)?(?:www\.)?deezer\.com\/(?:\w{2}\/)?playlist\/(\d+)",
+    "DeezerAlbumRegex": r"(https?:\/\/|)?(?:www\.)?deezer\.com\/(?:\w{2}\/)?album\/(\d+)",
+    "DeezerArtistRegex": r"(https?:\/\/|)?(?:www\.)?deezer\.com\/(?:\w{2}\/)?artist\/(\d+)",
+    "DeezerMixesRegex": r"(https?:\/\/|)?(?:www\.)?deezer\.com\/(?:\w{2}\/)?mixes\/genre\/(\d+)",
+    "DeezerEpisodeRegex": r"(https?:\/\/|)?(?:www\.)?deezer\.com\/(?:\w{2}\/)?episode\/(\d+)",
+    "AllDeezerRegexWithoutPageLink": r"(https?:\/\/|)?(?:www\.)?deezer\.com\/(?:\w{2}\/)?(track|playlist|album|artist|mixes\/genre|episode)\/(\d+)",
+    "AllDeezerRegex": r"((https?:\/\/|)?(?:www\.)?deezer\.com\/(?:\w{2}\/)?(track|playlist|album|artist|mixes\/genre|episode)\/(\d+)|(https?:\/\/|)?(?:www\.)?deezer\.page\.link\/(\S+))",
+    "SpotifySongRegex": r"(https?:\/\/)(www\.)?open\.spotify\.com\/((?P<region>[a-zA-Z-]+)\/)?(user\/(?P<user>[a-zA-Z0-9-_]+)\/)?track\/(?P<identifier>[a-zA-Z0-9-_]+)",
+    "SpotifyPlaylistRegex": r"(https?:\/\/)(www\.)?open\.spotify\.com\/((?P<region>[a-zA-Z-]+)\/)?(user\/(?P<user>[a-zA-Z0-9-_]+)\/)?playlist\/(?P<identifier>[a-zA-Z0-9-_]+)",
+    "SpotifyArtistRegex": r"(https?:\/\/)(www\.)?open\.spotify\.com\/((?P<region>[a-zA-Z-]+)\/)?(user\/(?P<user>[a-zA-Z0-9-_]+)\/)?artist\/(?P<identifier>[a-zA-Z0-9-_]+)",
+    "SpotifyEpisodeRegex": r"(https?:\/\/)(www\.)?open\.spotify\.com\/((?P<region>[a-zA-Z-]+)\/)?(user\/(?P<user>[a-zA-Z0-9-_]+)\/)?episode\/(?P<identifier>[a-zA-Z0-9-_]+)",
+    "SpotifyShowRegex": r"(https?:\/\/)(www\.)?open\.spotify\.com\/((?P<region>[a-zA-Z-]+)\/)?(user\/(?P<user>[a-zA-Z0-9-_]+)\/)?show\/(?P<identifier>[a-zA-Z0-9-_]+)",
+    "SpotifyAlbumRegex": r"(https?:\/\/)(www\.)?open\.spotify\.com\/((?P<region>[a-zA-Z-]+)\/)?(user\/(?P<user>[a-zA-Z0-9-_]+)\/)?album\/(?P<identifier>[a-zA-Z0-9-_]+)",
+    "AllSpotifyRegex": r"(https?:\/\/)(www\.)?open\.spotify\.com\/((?P<region>[a-zA-Z-]+)\/)?(user\/(?P<user>[a-zA-Z0-9-_]+)\/)?(?P<type>track|album|playlist|artist|episode|show)\/(?P<identifier>[a-zA-Z0-9-_]+)",
+    "appleMusic": r"https?:\/\/?(?:www\.)?music\.apple\.com\/(\S+)",
+    "tidal": r"https?:\/\/?(?:www\.)?(?:tidal|listen)\.tidal\.com\/(?P<type>track|album|playlist|artist)\/(?P<identifier>[a-zA-Z0-9-_]+)",
+    "jiosaavn": r"(https?:\/\/)(www\.)?jiosaavn\.com\/(?P<type>song|album|featured|artist)\/([a-zA-Z0-9-_/,]+)",
+    "PandoraTrackRegex": r"^@?(?:https?:\/\/)?(?:www\.)?pandora\.com\/artist\/[\w-]+(?:\/[\w-]+)*\/(?P<identifier>TR[A-Za-z0-9]+)(?:[?#].*)?$",
+    "PandoraAlbumRegex": r"^@?(?:https?:\/\/)?(?:www\.)?pandora\.com\/artist\/[\w-]+(?:\/[\w-]+)*\/(?P<identifier>AL[A-Za-z0-9]+)(?:[?#].*)?$",
+    "PandoraArtistRegex": r"^@?(?:https?:\/\/)?(?:www\.)?pandora\.com\/artist\/[\w-]+\/(?P<identifier>AR[A-Za-z0-9]+)(?:[?#].*)?$",
+    "PandoraPlaylistRegex": r"^@?(?:https?:\/\/)?(?:www\.)?pandora\.com\/playlist\/(?P<identifier>PL:[\d:]+)(?:[?#].*)?$",
+    "AllPandoraRegex": r"^@?(?:https?:\/\/)?(?:www\.)?pandora\.com\/(?:playlist\/(?P<playlistId>PL:[\d:]+)|artist\/[\w-]+(?:\/[\w-]+)*\/(?P<identifier>(?:TR|AL|AR)[A-Za-z0-9]+))(?:[?#].*)?$",
+    "tiktok": r"https:\/\/www\.tiktok\.com\/",
+    "mixcloud": r"https:\/\/www\.mixcloud\.com\/",
+    "musicYandex": r"https:\/\/music\.yandex\.ru\/",
+    "radiohost": r"https?:\/\/[^.\s]+\.radiohost\.de\/(\S+)",
 }

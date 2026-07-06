@@ -16,6 +16,7 @@ Please delete options that are not relevant.
 ## Scope of change
 
 Which part of Lavende does this target?
+
 - [ ] Rust Core (`liblavende`)
 - [ ] Node.js Wrapper
 - [ ] Python Wrapper

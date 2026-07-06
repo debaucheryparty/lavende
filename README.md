@@ -35,21 +35,25 @@ Lavende is a high-performance native audio processing library designed specifica
 Depending on your language, install Lavende via your package manager:
 
 **Node.js**:
+
 ```sh
 $ npm install lavende
 ```
 
 **Python**:
+
 ```sh
 $ pip install lavende
 ```
 
 **Golang**:
+
 ```sh
 $ go get github.com/debaucheryparty/lavende
 ```
 
 **Rust**:
+
 ```sh
 $ cargo add lavende
 ```
@@ -61,25 +65,27 @@ Lavende sits side-by-side with your Discord API wrapper (e.g., discord.js, disco
 Here is a quick Node.js initialization strategy:
 
 ```javascript
-const { Client, GatewayIntentBits } = require('discord.js');
-const { LavendeManager } = require('lavende');
+const { Client, GatewayIntentBits } = require("discord.js");
+const { LavendeManager } = require("lavende");
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates] });
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates],
+});
 let manager = null;
 
-client.once('ready', () => {
-    manager = new LavendeManager({
-        sendToShard: (guildId, payload) => {
-            client.guilds.cache.get(guildId)?.shard?.send(payload);
-        },
-        client: { id: client.user.id, username: client.user.username }
-    });
-    manager.init();
+client.once("ready", () => {
+  manager = new LavendeManager({
+    sendToShard: (guildId, payload) => {
+      client.guilds.cache.get(guildId)?.shard?.send(payload);
+    },
+    client: { id: client.user.id, username: client.user.username },
+  });
+  manager.init();
 });
 
 // Pass raw socket events to Lavende to establish the Voice connection
-client.on('raw', (packet) => {
-    if (manager) manager.sendRawData(packet);
+client.on("raw", (packet) => {
+  if (manager) manager.sendRawData(packet);
 });
 
 client.login("token");

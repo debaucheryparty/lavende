@@ -514,7 +514,7 @@ func (p *Player) Connect() error {
 	if p.VoiceChannelId != nil {
 		channelIDValue = *p.VoiceChannelId
 	}
-	
+
 	payload := map[string]interface{}{
 		"op": 4,
 		"d": map[string]interface{}{
