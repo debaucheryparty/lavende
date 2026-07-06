@@ -2,7 +2,7 @@ package lavende
 
 /*
 #cgo CFLAGS: -I.
-#cgo windows LDFLAGS: -L. -llavende_go
+#cgo windows LDFLAGS: -L. -llavende_go -lws2_32 -luserenv -lntdll -lbcrypt -lsecur32 -lcrypt32 -lncrypt
 #cgo !windows LDFLAGS: -L. -llavende_go -lm -ldl -lpthread
 #cgo darwin LDFLAGS: -framework Security -framework CoreFoundation -framework SystemConfiguration
 
@@ -510,11 +510,16 @@ func (p *Player) CheckPlayOnConnect() {
 }
 
 func (p *Player) Connect() error {
+	var channelIDValue interface{}
+	if p.VoiceChannelId != nil {
+		channelIDValue = *p.VoiceChannelId
+	}
+	
 	payload := map[string]interface{}{
 		"op": 4,
 		"d": map[string]interface{}{
 			"guild_id":   p.GuildId,
-			"channel_id": p.VoiceChannelId,
+			"channel_id": channelIDValue,
 			"self_mute":  false,
 			"self_deaf":  p.SelfDeaf,
 		},

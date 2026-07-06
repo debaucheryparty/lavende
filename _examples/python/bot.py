@@ -4,7 +4,11 @@ import os
 import sys
 import json
 import asyncio
+from dotenv import load_dotenv
 from lavende import LavendeManager
+
+# Load environment variables
+load_dotenv()
 
 intents = discord.Intents.all()
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -8,8 +9,16 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
-	"github.com/bwmarrin/discordgo"
+	"github.com/disgoorg/disgo"
+	"github.com/disgoorg/disgo/bot"
+	"github.com/disgoorg/disgo/cache"
+	"github.com/disgoorg/disgo/discord"
+	"github.com/disgoorg/disgo/events"
+	"github.com/disgoorg/disgo/gateway"
+	"github.com/disgoorg/snowflake/v2"
+	"github.com/joho/godotenv"
 	"lavende"
 )
 
@@ -31,598 +40,424 @@ func formatTime(ms int64) string {
 	return fmt.Sprintf("%d:%02d", mins, secs)
 }
 
-func getVoiceChannelID(s *discordgo.Session, guildID, userID string) string {
-	vs, err := s.State.VoiceState(guildID, userID)
-	if err == nil && vs != nil {
-		return vs.ChannelID
-	}
-	g, err := s.State.Guild(guildID)
-	if err == nil && g != nil {
-		for _, state := range g.VoiceStates {
-			if state.UserID == userID {
-				return state.ChannelID
-			}
-		}
-	}
-	return ""
-}
-
-func onTrackStart(s *discordgo.Session) func(args ...interface{}) {
+func onTrackStart(client bot.Client) func(args ...interface{}) {
 	return func(args ...interface{}) {
 		player := args[0].(*lavende.Player)
 		track := args[1].(*lavende.Track)
 
-		embed := &discordgo.MessageEmbed{
-			Title:       "Now Playing",
-			Description: fmt.Sprintf("[%s](%s)", track.Info.Title, track.Info.Uri),
-		}
-
-		author := track.Info.Author
-		if author == "" {
-			author = "Unknown"
-		}
-		embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
-			Name:   "Author",
-			Value:  author,
-			Inline: true,
-		})
-
-		embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
-			Name:   "Duration",
-			Value:  formatTime(track.Info.Length),
-			Inline: true,
-		})
+		embed := discord.NewEmbedBuilder().
+			SetTitle("Now Playing").
+			SetDescription(fmt.Sprintf("[%s](%s)", track.Info.Title, track.Info.Uri)).
+			AddField("Author", track.Info.Author, true).
+			AddField("Duration", formatTime(track.Info.Length), true)
 
 		requesterMention := "Unknown"
 		if track.Requester != nil {
-			if user, ok := track.Requester.(*discordgo.User); ok {
+			if user, ok := track.Requester.(discord.User); ok {
 				requesterMention = user.Mention()
-			} else if member, ok := track.Requester.(*discordgo.Member); ok {
-				requesterMention = member.User.Mention()
 			}
 		}
-		embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{
-			Name:   "Requested By",
-			Value:  requesterMention,
-			Inline: true,
-		})
+		embed.AddField("Requested By", requesterMention, true)
 
 		if track.Info.ArtworkUrl != nil {
-			embed.Thumbnail = &discordgo.MessageEmbedThumbnail{
-				URL: *track.Info.ArtworkUrl,
-			}
+			embed.SetThumbnail(*track.Info.ArtworkUrl)
 		}
 
 		if player.TextChannelId != nil {
-			s.ChannelMessageSendEmbed(*player.TextChannelId, embed)
+			channelID, _ := snowflake.Parse(*player.TextChannelId)
+			_, _ = client.Rest().CreateMessage(channelID, discord.NewMessageCreateBuilder().
+				SetEmbeds(embed.Build()).
+				Build())
 		}
 	}
 }
 
-func onTrackEnd(s *discordgo.Session) func(args ...interface{}) {
+func onTrackEnd(client bot.Client) func(args ...interface{}) {
 	return func(args ...interface{}) {
 		player := args[0].(*lavende.Player)
 		track := args[1].(*lavende.Track)
 		reason := args[2].(string)
 
-		embed := &discordgo.MessageEmbed{
-			Description: fmt.Sprintf("Finished playing: `%s` (Reason: `%s`)", track.Info.Title, reason),
-		}
+		embed := discord.NewEmbedBuilder().
+			SetDescription(fmt.Sprintf("Finished playing: `%s` (Reason: `%s`)", track.Info.Title, reason)).
+			Build()
+
 		if player.TextChannelId != nil {
-			s.ChannelMessageSendEmbed(*player.TextChannelId, embed)
+			channelID, _ := snowflake.Parse(*player.TextChannelId)
+			_, _ = client.Rest().CreateMessage(channelID, discord.NewMessageCreateBuilder().
+				SetEmbeds(embed).
+				Build())
 		}
 	}
 }
 
-func onQueueEnd(s *discordgo.Session) func(args ...interface{}) {
+func onQueueEnd(client bot.Client) func(args ...interface{}) {
 	return func(args ...interface{}) {
 		player := args[0].(*lavende.Player)
 
-		embed := &discordgo.MessageEmbed{
-			Description: "Queue ended. Disconnecting from voice channel.",
-		}
+		embed := discord.NewEmbedBuilder().
+			SetDescription("Queue ended. Disconnecting from voice channel.").
+			Build()
+
 		if player.TextChannelId != nil {
-			s.ChannelMessageSendEmbed(*player.TextChannelId, embed)
+			channelID, _ := snowflake.Parse(*player.TextChannelId)
+			_, _ = client.Rest().CreateMessage(channelID, discord.NewMessageCreateBuilder().
+				SetEmbeds(embed).
+				Build())
 		}
 		player.Destroy(nil)
 	}
 }
 
-func onError(s *discordgo.Session) func(args ...interface{}) {
+func onError(client bot.Client) func(args ...interface{}) {
 	return func(args ...interface{}) {
 		player := args[0].(*lavende.Player)
 		err := args[1].(error)
 
-		embed := &discordgo.MessageEmbed{
-			Description: fmt.Sprintf("Playback error: `%v`", err),
-		}
+		embed := discord.NewEmbedBuilder().
+			SetDescription(fmt.Sprintf("Playback error: `%v`", err)).
+			Build()
+
 		if player.TextChannelId != nil {
-			s.ChannelMessageSendEmbed(*player.TextChannelId, embed)
+			channelID, _ := snowflake.Parse(*player.TextChannelId)
+			_, _ = client.Rest().CreateMessage(channelID, discord.NewMessageCreateBuilder().
+				SetEmbeds(embed).
+				Build())
 		}
 	}
 }
 
 func main() {
+	// Load environment variables from .env file
+	if err := godotenv.Load(); err != nil {
+		log.Println("Warning: .env file not found, using environment variables")
+	}
+
 	token := os.Getenv("DISCORD_TOKEN")
 	if token == "" {
 		log.Fatal("DISCORD_TOKEN is missing!")
 	}
 
-	s, err := discordgo.New("Bot " + token)
+	var clientRef bot.Client
+
+	client, err := disgo.New(token,
+		bot.WithGatewayConfigOpts(gateway.WithIntents(gateway.IntentGuilds|gateway.IntentGuildMessages|gateway.IntentMessageContent|gateway.IntentGuildVoiceStates)),
+		bot.WithCacheConfigOpts(
+			// Enable all caches including voice states
+			cache.WithCaches(cache.FlagsAll),
+		),
+		bot.WithEventListenerFunc(func(event *events.Ready) {
+			log.Printf("Logged in as %s", event.User.Username)
+
+			opts := lavende.LavendeManagerOptions{
+				SendToShard: func(guildId string, payload interface{}) {
+					log.Printf("SendToShard called for guild %s", guildId)
+					// Send voice state updates to Discord Gateway
+					// Lavende sends OP 4 (Voice State Update) payloads
+					if payloadMap, ok := payload.(map[string]interface{}); ok {
+						log.Printf("Payload: %+v", payloadMap)
+						if op, ok := payloadMap["op"].(int); ok && op == 4 {
+							log.Printf("Processing OP 4 voice state update")
+							if d, ok := payloadMap["d"].(map[string]interface{}); ok {
+								guildIDSnowflake, _ := snowflake.Parse(d["guild_id"].(string))
+								var channelIDPtr *snowflake.ID
+								if chID, ok := d["channel_id"].(string); ok && chID != "" {
+									chIDSnowflake, _ := snowflake.Parse(chID)
+									channelIDPtr = &chIDSnowflake
+								}
+								selfMute, _ := d["self_mute"].(bool)
+								selfDeaf, _ := d["self_deaf"].(bool)
+								
+								log.Printf("Sending to Discord: guild=%s, channel=%v", guildIDSnowflake, channelIDPtr)
+								
+								updateData := gateway.MessageDataVoiceStateUpdate{
+									GuildID:   guildIDSnowflake,
+									ChannelID: channelIDPtr,
+									SelfMute:  selfMute,
+									SelfDeaf:  selfDeaf,
+								}
+								
+								if err := clientRef.Gateway().Send(context.Background(), gateway.OpcodeVoiceStateUpdate, updateData); err != nil {
+									log.Printf("ERROR sending voice update to gateway: %v", err)
+								} else {
+									log.Printf("Successfully sent OP 4 to Discord")
+								}
+							}
+						}
+					}
+				},
+			}
+			opts.Client.Id = event.User.ID.String()
+			username := event.User.Username
+			opts.Client.Username = &username
+
+			manager = lavende.NewLavendeManager(opts)
+			manager.Init(nil)
+		}),
+		bot.WithEventListenerFunc(func(event *events.GuildVoiceStateUpdate) {
+			if manager != nil && event.VoiceState.UserID == clientRef.ApplicationID() {
+				log.Printf("Received VOICE_STATE_UPDATE: session_id=%s, channel_id=%v", event.VoiceState.SessionID, event.VoiceState.ChannelID)
+				packet := map[string]interface{}{
+					"t": "VOICE_STATE_UPDATE",
+					"d": map[string]interface{}{
+						"user_id":    event.VoiceState.UserID.String(),
+						"guild_id":   event.VoiceState.GuildID.String(),
+						"session_id": event.VoiceState.SessionID,
+						"channel_id": event.VoiceState.ChannelID.String(),
+					},
+				}
+				manager.SendRawData(packet)
+				log.Printf("Sent VOICE_STATE_UPDATE to Lavende manager")
+			}
+		}),
+		bot.WithEventListenerFunc(func(event *events.VoiceServerUpdate) {
+			if manager != nil {
+				log.Printf("Received VOICE_SERVER_UPDATE: endpoint=%s", event.Endpoint)
+				packet := map[string]interface{}{
+					"t": "VOICE_SERVER_UPDATE",
+					"d": map[string]interface{}{
+						"guild_id": event.GuildID.String(),
+						"token":    event.Token,
+						"endpoint": event.Endpoint,
+					},
+				}
+				manager.SendRawData(packet)
+				log.Printf("Sent VOICE_SERVER_UPDATE to Lavende manager")
+			}
+		}),
+		bot.WithEventListenerFunc(func(event *events.MessageCreate) {
+			if event.Message.Author.Bot || !strings.HasPrefix(event.Message.Content, "!") {
+				return
+			}
+			if event.GuildID == nil {
+				return
+			}
+
+			content := strings.TrimPrefix(event.Message.Content, "!")
+			args := strings.Fields(content)
+			if len(args) == 0 {
+				return
+			}
+			command := strings.ToLower(args[0])
+			args = args[1:]
+
+			guildID := event.GuildID.String()
+
+			if command == "play" || command == "p" {
+				query := strings.Join(args, " ")
+				if query == "" {
+					embed := discord.NewEmbedBuilder().
+						SetDescription("Please provide a track URL or search query.").
+						Build()
+					_, _ = clientRef.Rest().CreateMessage(event.ChannelID, discord.NewMessageCreateBuilder().
+						SetEmbeds(embed).
+						Build())
+					return
+				}
+
+				// Get user's voice state from cache
+				voiceState, ok := clientRef.Caches().VoiceState(*event.GuildID, event.Message.Author.ID)
+				if !ok || voiceState.ChannelID == nil {
+					embed := discord.NewEmbedBuilder().
+						SetDescription("You must be in a voice channel to play music.").
+						Build()
+					_, _ = clientRef.Rest().CreateMessage(event.ChannelID, discord.NewMessageCreateBuilder().
+						SetEmbeds(embed).
+						Build())
+					return
+				}
+
+				voiceChannelID := voiceState.ChannelID.String()
+				log.Printf("User is in voice channel: %s", voiceChannelID)
+
+				var player *lavende.Player
+				if pVal, ok := manager.Players.Load(guildID); ok {
+					player = pVal.(*lavende.Player)
+				} else {
+					textChan := event.ChannelID.String()
+					sd := true
+					player = manager.CreatePlayer(lavende.PlayerOptions{
+						GuildId:        guildID,
+						VoiceChannelId: voiceChannelID,
+						TextChannelId:  &textChan,
+						SelfDeaf:       &sd,
+					})
+					player.On("trackStart", onTrackStart(clientRef))
+					player.On("trackEnd", onTrackEnd(clientRef))
+					player.On("queueEnd", onQueueEnd(clientRef))
+					player.On("error", onError(clientRef))
+				}
+
+				resolveEmbed := discord.NewEmbedBuilder().
+					SetDescription(fmt.Sprintf("Resolving: `%s`...", query)).
+					Build()
+				statusMsg, err := clientRef.Rest().CreateMessage(event.ChannelID, discord.NewMessageCreateBuilder().
+					SetEmbeds(resolveEmbed).
+					Build())
+				if err != nil {
+					return
+				}
+
+				res, err := player.Search(query, event.Message.Author)
+				if err != nil || res == nil || res.LoadType == "empty" || len(res.Tracks) == 0 {
+					embed := discord.NewEmbedBuilder().
+						SetDescription("No tracks found.").
+						Build()
+					_, _ = clientRef.Rest().UpdateMessage(event.ChannelID, statusMsg.ID, discord.NewMessageUpdateBuilder().
+						SetEmbeds(embed).
+						Build())
+					return
+				}
+
+				if res.LoadType == "playlist" {
+					player.Queue.AddMultiple(res.Tracks, nil)
+					playlistName := "Unknown Playlist"
+					if infoMap, ok := res.PlaylistInfo.(map[string]interface{}); ok {
+						if name, ok := infoMap["name"].(string); ok {
+							playlistName = name
+						}
+					}
+					embed := discord.NewEmbedBuilder().
+						SetTitle("Playlist Enqueued").
+						SetDescription(fmt.Sprintf("Added %d tracks from playlist %s.", len(res.Tracks), playlistName)).
+						Build()
+					_, _ = clientRef.Rest().UpdateMessage(event.ChannelID, statusMsg.ID, discord.NewMessageUpdateBuilder().
+						SetEmbeds(embed).
+						Build())
+				} else {
+					track := res.Tracks[0]
+					player.Queue.AddSingle(track, nil)
+					embedBuilder := discord.NewEmbedBuilder().
+						SetTitle("Track Enqueued").
+						SetDescription(fmt.Sprintf("[%s](%s)", track.Info.Title, track.Info.Uri))
+					if track.Info.ArtworkUrl != nil {
+						embedBuilder.SetThumbnail(*track.Info.ArtworkUrl)
+					}
+					_, _ = clientRef.Rest().UpdateMessage(event.ChannelID, statusMsg.ID, discord.NewMessageUpdateBuilder().
+						SetEmbeds(embedBuilder.Build()).
+						Build())
+				}
+
+				log.Printf("Player.Playing status: %v, Queue size: %d", player.Playing, player.Queue.Size())
+				if !player.Playing {
+					log.Printf("Player not playing. Connecting to voice channel %s and starting playback...", voiceChannelID)
+					err := player.Connect()
+					if err != nil {
+						log.Printf("Error connecting to voice: %v", err)
+					}
+					err = player.Play(nil)
+					if err != nil {
+						log.Printf("Error starting playback: %v", err)
+					}
+				} else {
+					log.Printf("Player already playing, not reconnecting")
+				}
+
+			} else if command == "pause" {
+				if pVal, ok := manager.Players.Load(guildID); ok {
+					player := pVal.(*lavende.Player)
+					player.Pause(true)
+					embed := discord.NewEmbedBuilder().SetDescription("Paused.").Build()
+					_, _ = clientRef.Rest().CreateMessage(event.ChannelID, discord.NewMessageCreateBuilder().SetEmbeds(embed).Build())
+				} else {
+					embed := discord.NewEmbedBuilder().SetDescription("No active player.").Build()
+					_, _ = clientRef.Rest().CreateMessage(event.ChannelID, discord.NewMessageCreateBuilder().SetEmbeds(embed).Build())
+				}
+
+			} else if command == "resume" {
+				if pVal, ok := manager.Players.Load(guildID); ok {
+					player := pVal.(*lavende.Player)
+					player.Resume()
+					embed := discord.NewEmbedBuilder().SetDescription("Resumed.").Build()
+					_, _ = clientRef.Rest().CreateMessage(event.ChannelID, discord.NewMessageCreateBuilder().SetEmbeds(embed).Build())
+				} else {
+					embed := discord.NewEmbedBuilder().SetDescription("No active player.").Build()
+					_, _ = clientRef.Rest().CreateMessage(event.ChannelID, discord.NewMessageCreateBuilder().SetEmbeds(embed).Build())
+				}
+
+			} else if command == "skip" || command == "s" {
+				if pVal, ok := manager.Players.Load(guildID); ok {
+					player := pVal.(*lavende.Player)
+					player.Skip()
+					embed := discord.NewEmbedBuilder().SetDescription("Skipped.").Build()
+					_, _ = clientRef.Rest().CreateMessage(event.ChannelID, discord.NewMessageCreateBuilder().SetEmbeds(embed).Build())
+				} else {
+					embed := discord.NewEmbedBuilder().SetDescription("No active player.").Build()
+					_, _ = clientRef.Rest().CreateMessage(event.ChannelID, discord.NewMessageCreateBuilder().SetEmbeds(embed).Build())
+				}
+
+			} else if command == "stop" {
+				if pVal, ok := manager.Players.Load(guildID); ok {
+					player := pVal.(*lavende.Player)
+					player.Destroy(nil)
+					embed := discord.NewEmbedBuilder().SetDescription("Stopped playback and left voice channel.").Build()
+					_, _ = clientRef.Rest().CreateMessage(event.ChannelID, discord.NewMessageCreateBuilder().SetEmbeds(embed).Build())
+				} else {
+					embed := discord.NewEmbedBuilder().SetDescription("No active player.").Build()
+					_, _ = clientRef.Rest().CreateMessage(event.ChannelID, discord.NewMessageCreateBuilder().SetEmbeds(embed).Build())
+				}
+
+			} else if command == "volume" || command == "vol" {
+				if pVal, ok := manager.Players.Load(guildID); ok {
+					player := pVal.(*lavende.Player)
+					if len(args) == 0 {
+						embed := discord.NewEmbedBuilder().SetDescription("Please specify volume value between 0 and 1000.").Build()
+						_, _ = clientRef.Rest().CreateMessage(event.ChannelID, discord.NewMessageCreateBuilder().SetEmbeds(embed).Build())
+						return
+					}
+					vol, err := strconv.Atoi(args[0])
+					if err != nil || vol < 0 || vol > 1000 {
+						embed := discord.NewEmbedBuilder().SetDescription("Please specify a volume value between 0 and 1000.").Build()
+						_, _ = clientRef.Rest().CreateMessage(event.ChannelID, discord.NewMessageCreateBuilder().SetEmbeds(embed).Build())
+						return
+					}
+					player.SetVolumeObj(vol)
+					embed := discord.NewEmbedBuilder().SetDescription(fmt.Sprintf("Volume set to %d.", vol)).Build()
+					_, _ = clientRef.Rest().CreateMessage(event.ChannelID, discord.NewMessageCreateBuilder().SetEmbeds(embed).Build())
+				} else {
+					embed := discord.NewEmbedBuilder().SetDescription("No active player.").Build()
+					_, _ = clientRef.Rest().CreateMessage(event.ChannelID, discord.NewMessageCreateBuilder().SetEmbeds(embed).Build())
+				}
+
+			} else if command == "bassboost" || command == "bb" {
+				if pVal, ok := manager.Players.Load(guildID); ok {
+					player := pVal.(*lavende.Player)
+					active := len(player.FilterManager.EqualizerBands) > 0
+					if active {
+						player.FilterManager.EqualizerBands = []lavende.EqBand{}
+						player.FilterManager.ApplyPlayerFilters()
+						embed := discord.NewEmbedBuilder().SetDescription("Disabled Bassboost.").Build()
+						_, _ = clientRef.Rest().CreateMessage(event.ChannelID, discord.NewMessageCreateBuilder().SetEmbeds(embed).Build())
+					} else {
+						player.FilterManager.EqualizerBands = []lavende.EqBand{
+							{Band: 0, Gain: 0.25},
+							{Band: 1, Gain: 0.30},
+							{Band: 2, Gain: 0.20},
+							{Band: 3, Gain: 0.10},
+							{Band: 4, Gain: 0.05},
+						}
+						player.FilterManager.ApplyPlayerFilters()
+						embed := discord.NewEmbedBuilder().SetDescription("Enabled Bassboost.").Build()
+						_, _ = clientRef.Rest().CreateMessage(event.ChannelID, discord.NewMessageCreateBuilder().SetEmbeds(embed).Build())
+					}
+				} else {
+					embed := discord.NewEmbedBuilder().SetDescription("No active player.").Build()
+					_, _ = clientRef.Rest().CreateMessage(event.ChannelID, discord.NewMessageCreateBuilder().SetEmbeds(embed).Build())
+				}
+			}
+		}),
+	)
+
 	if err != nil {
-		log.Fatalf("Error creating Discord session: %v", err)
+		log.Fatalf("Error creating Discord client: %v", err)
 	}
 
-	s.Identify.Intents = discordgo.IntentsAll
+	clientRef = client
 
-	s.AddHandler(func(s *discordgo.Session, r *discordgo.Ready) {
-		log.Printf("Logged in as %s", s.State.User.String())
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
 
-		opts := lavende.LavendeManagerOptions{
-			SendToShard: func(guildId string, payload interface{}) {
-				err := s.GatewayWriteStruct(payload)
-				if err != nil {
-					log.Printf("Error sending raw to shard: %v", err)
-				}
-			},
-		}
-		opts.Client.Id = s.State.User.ID
-		opts.Client.Username = &s.State.User.Username
-
-		manager = lavende.NewLavendeManager(opts)
-		manager.Init(nil)
-	})
-
-	s.AddHandler(func(s *discordgo.Session, v *discordgo.VoiceStateUpdate) {
-		if manager != nil && v.UserID == s.State.User.ID {
-			packet := map[string]interface{}{
-				"t": "VOICE_STATE_UPDATE",
-				"d": map[string]interface{}{
-					"user_id":    v.UserID,
-					"guild_id":   v.GuildID,
-					"session_id": v.SessionID,
-					"channel_id": v.ChannelID,
-				},
-			}
-			manager.SendRawData(packet)
-		}
-	})
-
-	s.AddHandler(func(s *discordgo.Session, v *discordgo.VoiceServerUpdate) {
-		if manager != nil {
-			packet := map[string]interface{}{
-				"t": "VOICE_SERVER_UPDATE",
-				"d": map[string]interface{}{
-					"guild_id": v.GuildID,
-					"token":    v.Token,
-					"endpoint": v.Endpoint,
-				},
-			}
-			manager.SendRawData(packet)
-		}
-	})
-
-	s.AddHandler(func(s *discordgo.Session, m *discordgo.MessageCreate) {
-		if m.Author.Bot || !strings.HasPrefix(m.Content, "!") {
-			return
-		}
-		if m.GuildID == "" {
-			return
-		}
-
-		content := strings.TrimPrefix(m.Content, "!")
-		args := strings.Fields(content)
-		if len(args) == 0 {
-			return
-		}
-		command := strings.ToLower(args[0])
-		args = args[1:]
-
-		if command == "play" || command == "p" {
-			query := strings.Join(args, " ")
-			if query == "" {
-				embed := &discordgo.MessageEmbed{
-					Description: "Please provide a track URL or search query.",
-				}
-				s.ChannelMessageSendEmbed(m.ChannelID, embed)
-				return
-			}
-
-			voiceChannelID := getVoiceChannelID(s, m.GuildID, m.Author.ID)
-			if voiceChannelID == "" {
-				embed := &discordgo.MessageEmbed{
-					Description: "You must be in a voice channel to play music.",
-				}
-				s.ChannelMessageSendEmbed(m.ChannelID, embed)
-				return
-			}
-
-			var player *lavende.Player
-			if pVal, ok := manager.Players.Load(m.GuildID); ok {
-				player = pVal.(*lavende.Player)
-			} else {
-				textChan := m.ChannelID
-				sd := true
-				player = manager.CreatePlayer(lavende.PlayerOptions{
-					GuildId:        m.GuildID,
-					VoiceChannelId: voiceChannelID,
-					TextChannelId:  &textChan,
-					SelfDeaf:       &sd,
-				})
-				player.On("trackStart", onTrackStart(s))
-				player.On("trackEnd", onTrackEnd(s))
-				player.On("queueEnd", onQueueEnd(s))
-				player.On("error", onError(s))
-			}
-
-			resolveEmbed := &discordgo.MessageEmbed{
-				Description: fmt.Sprintf("Resolving: `%s`...", query),
-			}
-			statusMsg, err := s.ChannelMessageSendEmbed(m.ChannelID, resolveEmbed)
-			if err != nil {
-				return
-			}
-
-			res, err := player.Search(query, m.Author)
-			if err != nil || res == nil || res.LoadType == "empty" || len(res.Tracks) == 0 {
-				embed := &discordgo.MessageEmbed{
-					Description: "No tracks found.",
-				}
-				s.ChannelMessageEditEmbed(m.ChannelID, statusMsg.ID, embed)
-				return
-			}
-
-			if res.LoadType == "playlist" {
-				player.Queue.AddMultiple(res.Tracks, nil)
-				playlistName := "Unknown Playlist"
-				if infoMap, ok := res.PlaylistInfo.(map[string]interface{}); ok {
-					if name, ok := infoMap["name"].(string); ok {
-						playlistName = name
-					}
-				}
-				embed := &discordgo.MessageEmbed{
-					Title:       "Playlist Enqueued",
-					Description: fmt.Sprintf("Added %d tracks from playlist %s.", len(res.Tracks), playlistName),
-				}
-				s.ChannelMessageEditEmbed(m.ChannelID, statusMsg.ID, embed)
-			} else {
-				track := res.Tracks[0]
-				player.Queue.AddSingle(track, nil)
-				embed := &discordgo.MessageEmbed{
-					Title:       "Track Enqueued",
-					Description: fmt.Sprintf("[%s](%s)", track.Info.Title, track.Info.Uri),
-				}
-				if track.Info.ArtworkUrl != nil {
-					embed.Thumbnail = &discordgo.MessageEmbedThumbnail{
-						URL: *track.Info.ArtworkUrl,
-					}
-				}
-				s.ChannelMessageEditEmbed(m.ChannelID, statusMsg.ID, embed)
-			}
-
-			if !player.Playing {
-				player.Connect()
-				player.Play(nil)
-			}
-
-		} else if command == "pause" {
-			if pVal, ok := manager.Players.Load(m.GuildID); ok {
-				player := pVal.(*lavende.Player)
-				player.Pause(true)
-				embed := &discordgo.MessageEmbed{
-					Description: "Paused.",
-				}
-				s.ChannelMessageSendEmbed(m.ChannelID, embed)
-			} else {
-				embed := &discordgo.MessageEmbed{
-					Description: "No active player.",
-				}
-				s.ChannelMessageSendEmbed(m.ChannelID, embed)
-			}
-
-		} else if command == "resume" {
-			if pVal, ok := manager.Players.Load(m.GuildID); ok {
-				player := pVal.(*lavende.Player)
-				player.Resume()
-				embed := &discordgo.MessageEmbed{
-					Description: "Resumed.",
-				}
-				s.ChannelMessageSendEmbed(m.ChannelID, embed)
-			} else {
-				embed := &discordgo.MessageEmbed{
-					Description: "No active player.",
-				}
-				s.ChannelMessageSendEmbed(m.ChannelID, embed)
-			}
-
-		} else if command == "skip" || command == "s" {
-			if pVal, ok := manager.Players.Load(m.GuildID); ok {
-				player := pVal.(*lavende.Player)
-				player.Skip()
-				embed := &discordgo.MessageEmbed{
-					Description: "Skipped.",
-				}
-				s.ChannelMessageSendEmbed(m.ChannelID, embed)
-			} else {
-				embed := &discordgo.MessageEmbed{
-					Description: "No active player.",
-				}
-				s.ChannelMessageSendEmbed(m.ChannelID, embed)
-			}
-
-		} else if command == "stop" {
-			if pVal, ok := manager.Players.Load(m.GuildID); ok {
-				player := pVal.(*lavende.Player)
-				player.Destroy(nil)
-				embed := &discordgo.MessageEmbed{
-					Description: "Stopped playback and left voice channel.",
-				}
-				s.ChannelMessageSendEmbed(m.ChannelID, embed)
-			} else {
-				embed := &discordgo.MessageEmbed{
-					Description: "No active player.",
-				}
-				s.ChannelMessageSendEmbed(m.ChannelID, embed)
-			}
-
-		} else if command == "volume" || command == "vol" {
-			if pVal, ok := manager.Players.Load(m.GuildID); ok {
-				player := pVal.(*lavende.Player)
-				if len(args) == 0 {
-					embed := &discordgo.MessageEmbed{
-						Description: "Please specify volume value between 0 and 1000.",
-					}
-					s.ChannelMessageSendEmbed(m.ChannelID, embed)
-					return
-				}
-				vol, err := strconv.Atoi(args[0])
-				if err != nil || vol < 0 || vol > 1000 {
-					embed := &discordgo.MessageEmbed{
-						Description: "Please specify a volume value between 0 and 1000.",
-					}
-					s.ChannelMessageSendEmbed(m.ChannelID, embed)
-					return
-				}
-				player.SetVolumeObj(vol)
-				embed := &discordgo.MessageEmbed{
-					Description: fmt.Sprintf("Volume set to %d.", vol),
-				}
-				s.ChannelMessageSendEmbed(m.ChannelID, embed)
-			} else {
-				embed := &discordgo.MessageEmbed{
-					Description: "No active player.",
-				}
-				s.ChannelMessageSendEmbed(m.ChannelID, embed)
-			}
-
-		} else if command == "seek" {
-			if pVal, ok := manager.Players.Load(m.GuildID); ok {
-				player := pVal.(*lavende.Player)
-				if len(args) == 0 {
-					embed := &discordgo.MessageEmbed{
-						Description: "Please specify seek position in seconds.",
-					}
-					s.ChannelMessageSendEmbed(m.ChannelID, embed)
-					return
-				}
-				sec, err := strconv.Atoi(args[0])
-				if err != nil || sec < 0 {
-					embed := &discordgo.MessageEmbed{
-						Description: "Please specify seek position in seconds.",
-					}
-					s.ChannelMessageSendEmbed(m.ChannelID, embed)
-					return
-				}
-				player.Seek(int64(sec * 1000))
-				embed := &discordgo.MessageEmbed{
-					Description: fmt.Sprintf("Seeked to %ds.", sec),
-				}
-				s.ChannelMessageSendEmbed(m.ChannelID, embed)
-			} else {
-				embed := &discordgo.MessageEmbed{
-					Description: "No active player.",
-				}
-				s.ChannelMessageSendEmbed(m.ChannelID, embed)
-			}
-
-		} else if command == "repeat" || command == "loop" {
-			if pVal, ok := manager.Players.Load(m.GuildID); ok {
-				player := pVal.(*lavende.Player)
-				if len(args) == 0 {
-					embed := &discordgo.MessageEmbed{
-						Description: "Specify repeat mode: off, track, or queue.",
-					}
-					s.ChannelMessageSendEmbed(m.ChannelID, embed)
-					return
-				}
-				mode := args[0]
-				if mode != "off" && mode != "track" && mode != "queue" {
-					embed := &discordgo.MessageEmbed{
-						Description: "Specify repeat mode: off, track, or queue.",
-					}
-					s.ChannelMessageSendEmbed(m.ChannelID, embed)
-					return
-				}
-				player.SetRepeatMode(mode)
-				embed := &discordgo.MessageEmbed{
-					Description: fmt.Sprintf("Repeat mode set to %s.", mode),
-				}
-				s.ChannelMessageSendEmbed(m.ChannelID, embed)
-			} else {
-				embed := &discordgo.MessageEmbed{
-					Description: "No active player.",
-				}
-				s.ChannelMessageSendEmbed(m.ChannelID, embed)
-			}
-
-		} else if command == "shuffle" {
-			if pVal, ok := manager.Players.Load(m.GuildID); ok {
-				player := pVal.(*lavende.Player)
-				player.Queue.Shuffle()
-				embed := &discordgo.MessageEmbed{
-					Description: "Queue shuffled.",
-				}
-				s.ChannelMessageSendEmbed(m.ChannelID, embed)
-			} else {
-				embed := &discordgo.MessageEmbed{
-					Description: "No active player.",
-				}
-				s.ChannelMessageSendEmbed(m.ChannelID, embed)
-			}
-
-		} else if command == "bassboost" || command == "bb" {
-			if pVal, ok := manager.Players.Load(m.GuildID); ok {
-				player := pVal.(*lavende.Player)
-				active := len(player.FilterManager.EqualizerBands) > 0
-				if active {
-					player.FilterManager.EqualizerBands = []lavende.EqBand{}
-					player.FilterManager.ApplyPlayerFilters()
-					embed := &discordgo.MessageEmbed{
-						Description: "Disabled Bassboost.",
-					}
-					s.ChannelMessageSendEmbed(m.ChannelID, embed)
-				} else {
-					player.FilterManager.EqualizerBands = []lavende.EqBand{
-						{Band: 0, Gain: 0.25},
-						{Band: 1, Gain: 0.30},
-						{Band: 2, Gain: 0.20},
-						{Band: 3, Gain: 0.10},
-						{Band: 4, Gain: 0.05},
-					}
-					player.FilterManager.ApplyPlayerFilters()
-					embed := &discordgo.MessageEmbed{
-						Description: "Enabled Bassboost.",
-					}
-					s.ChannelMessageSendEmbed(m.ChannelID, embed)
-				}
-			} else {
-				embed := &discordgo.MessageEmbed{
-					Description: "No active player.",
-				}
-				s.ChannelMessageSendEmbed(m.ChannelID, embed)
-			}
-
-		} else if command == "nightcore" || command == "nc" {
-			if pVal, ok := manager.Players.Load(m.GuildID); ok {
-				player := pVal.(*lavende.Player)
-				active, _ := player.FilterManager.Filters["nightcore"].(bool)
-				if active {
-					player.FilterManager.ResetFilters()
-					embed := &discordgo.MessageEmbed{
-						Description: "Disabled Nightcore filter.",
-					}
-					s.ChannelMessageSendEmbed(m.ChannelID, embed)
-				} else {
-					player.FilterManager.SetSpeed(1.18)
-					player.FilterManager.SetPitch(1.3)
-					player.FilterManager.Filters["nightcore"] = true
-					embed := &discordgo.MessageEmbed{
-						Description: "Enabled Nightcore filter.",
-					}
-					s.ChannelMessageSendEmbed(m.ChannelID, embed)
-				}
-			} else {
-				embed := &discordgo.MessageEmbed{
-					Description: "No active player.",
-				}
-				s.ChannelMessageSendEmbed(m.ChannelID, embed)
-			}
-
-		} else if command == "vaporwave" || command == "vw" {
-			if pVal, ok := manager.Players.Load(m.GuildID); ok {
-				player := pVal.(*lavende.Player)
-				active, _ := player.FilterManager.Filters["vaporwave"].(bool)
-				if active {
-					player.FilterManager.ResetFilters()
-					embed := &discordgo.MessageEmbed{
-						Description: "Disabled Vaporwave filter.",
-					}
-					s.ChannelMessageSendEmbed(m.ChannelID, embed)
-				} else {
-					player.FilterManager.SetSpeed(0.85)
-					player.FilterManager.SetPitch(0.8)
-					player.FilterManager.Filters["vaporwave"] = true
-					embed := &discordgo.MessageEmbed{
-						Description: "Enabled Vaporwave filter.",
-					}
-					s.ChannelMessageSendEmbed(m.ChannelID, embed)
-				}
-			} else {
-				embed := &discordgo.MessageEmbed{
-					Description: "No active player.",
-				}
-				s.ChannelMessageSendEmbed(m.ChannelID, embed)
-			}
-
-		} else if command == "rotation" || command == "3d" {
-			if pVal, ok := manager.Players.Load(m.GuildID); ok {
-				player := pVal.(*lavende.Player)
-				player.FilterManager.ToggleRotation(0.3)
-				active, _ := player.FilterManager.Filters["rotation"].(bool)
-				desc := "Disabled 3D Rotation filter."
-				if active {
-					desc = "Enabled 3D Rotation filter."
-				}
-				embed := &discordgo.MessageEmbed{
-					Description: desc,
-				}
-				s.ChannelMessageSendEmbed(m.ChannelID, embed)
-			} else {
-				embed := &discordgo.MessageEmbed{
-					Description: "No active player.",
-				}
-				s.ChannelMessageSendEmbed(m.ChannelID, embed)
-			}
-
-		} else if command == "mono" {
-			if pVal, ok := manager.Players.Load(m.GuildID); ok {
-				player := pVal.(*lavende.Player)
-				player.FilterManager.SetAudioOutput("mono")
-				embed := &discordgo.MessageEmbed{
-					Description: "Audio output set to Mono.",
-				}
-				s.ChannelMessageSendEmbed(m.ChannelID, embed)
-			} else {
-				embed := &discordgo.MessageEmbed{
-					Description: "No active player.",
-				}
-				s.ChannelMessageSendEmbed(m.ChannelID, embed)
-			}
-
-		} else if command == "stereo" {
-			if pVal, ok := manager.Players.Load(m.GuildID); ok {
-				player := pVal.(*lavende.Player)
-				player.FilterManager.SetAudioOutput("stereo")
-				embed := &discordgo.MessageEmbed{
-					Description: "Audio output set to Stereo.",
-				}
-				s.ChannelMessageSendEmbed(m.ChannelID, embed)
-			} else {
-				embed := &discordgo.MessageEmbed{
-					Description: "No active player.",
-				}
-				s.ChannelMessageSendEmbed(m.ChannelID, embed)
-			}
-
-		} else if command == "clearfilters" || command == "cf" {
-			if pVal, ok := manager.Players.Load(m.GuildID); ok {
-				player := pVal.(*lavende.Player)
-				player.FilterManager.ResetFilters()
-				embed := &discordgo.MessageEmbed{
-					Description: "Cleared all active filters.",
-				}
-				s.ChannelMessageSendEmbed(m.ChannelID, embed)
-			} else {
-				embed := &discordgo.MessageEmbed{
-					Description: "No active player.",
-				}
-				s.ChannelMessageSendEmbed(m.ChannelID, embed)
-			}
-		}
-	})
-
-	err = s.Open()
-	if err != nil {
+	if err = client.OpenGateway(ctx); err != nil {
 		log.Fatalf("Error opening connection to Discord: %v", err)
 	}
 
@@ -631,5 +466,9 @@ func main() {
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
 	<-sc
 
-	s.Close()
+	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	client.Close(ctx)
 }
+
+

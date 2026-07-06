@@ -6,4 +6,7 @@ members = [
     "src/go",
     "src/python",
 ]
+exclude = [
+    "_examples/rust",
+]
 resolver = "2"

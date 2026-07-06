@@ -71,13 +71,43 @@ The rotation filter applies an oscillating panning effect to simulate the audio 
 await player.filterManager.toggleRotation(0.3);
 ```
 
-### 4. Channel Forcing
+### 4. Tremolo & Vibrato
 
-Force the output into a specific channel configuration. Valid options are `'mono'` or `'stereo'`.
+Apply oscillating amplitude (tremolo) or pitch (vibrato) modulation effects.
+
+```typescript
+// Tremolo: oscillating amplitude
+await player.filterManager.toggleTremolo(4.0, 0.8);
+
+// Vibrato: oscillating pitch
+await player.filterManager.toggleVibrato(10.0, 1.0);
+```
+
+### 5. Rate Control
+
+Control the playback rate independently.
+
+```typescript
+await player.filterManager.setRate(1.0);
+```
+
+### 6. Volume Filter
+
+Apply volume multiplication (different from player volume).
+
+```typescript
+await player.filterManager.setVolume(1.5); // 150% volume
+```
+
+### 7. Channel Forcing
+
+Force the output into a specific channel configuration. Valid options are `'mono'`, `'stereo'`, `'left'`, or `'right'`.
 
 ```typescript
 await player.filterManager.setAudioOutput('mono');
 await player.filterManager.setAudioOutput('stereo');
+await player.filterManager.setAudioOutput('left');
+await player.filterManager.setAudioOutput('right');
 ```
 
 ---

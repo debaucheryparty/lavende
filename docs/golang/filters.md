@@ -70,13 +70,43 @@ The rotation filter applies an oscillating panning effect to simulate the audio 
 player.FilterManager.ToggleRotation(0.3)
 ```
 
-### 4. Channel Forcing
+### 4. Tremolo & Vibrato
+
+Apply oscillating amplitude (tremolo) or pitch (vibrato) modulation effects.
+
+```go
+// Tremolo: oscillating amplitude
+player.FilterManager.ToggleTremolo(4.0, 0.8)
+
+// Vibrato: oscillating pitch
+player.FilterManager.ToggleVibrato(10.0, 1.0)
+```
+
+### 5. Rate Control
+
+Control the playback rate independently.
+
+```go
+player.FilterManager.SetRate(1.0)
+```
+
+### 6. Volume Filter
+
+Apply volume multiplication (different from player volume).
+
+```go
+player.FilterManager.SetVolume(1.5) // 150% volume
+```
+
+### 7. Channel Forcing
 
 Force the output into a specific channel configuration.
 
 ```go
 player.FilterManager.SetAudioOutput("mono")
 player.FilterManager.SetAudioOutput("stereo")
+player.FilterManager.SetAudioOutput("left")
+player.FilterManager.SetAudioOutput("right")
 ```
 
 ---

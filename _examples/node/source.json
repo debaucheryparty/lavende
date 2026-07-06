@@ -1,0 +1,97 @@
+{
+  "sources": {
+    "youtube": {
+      "enabled": true,
+      "clients": {
+        "search": [
+          "TVHTML5_SIMPLY",
+          "MUSIC_ANDROID",
+          "ANDROID",
+          "WEB"
+        ],
+        "playback": [
+          "ANDROID_VR",
+          "TV_CAST",
+          "WEB_EMBEDDED",
+          "TV",
+          "WEB",
+          "IOS",
+          "MWEB"
+        ],
+        "resolve": [
+          "TVHTML5_SIMPLY",
+          "TVHTML5_UNPLUGGED",
+          "WEB",
+          "MWEB",
+          "IOS",
+          "ANDROID"
+        ]
+      },
+      "cipher": {
+        "url": "https://cipher.kikkia.dev/api",
+        "token": null
+      }
+    },
+    "jiosaavn": {
+      "enabled": true,
+      "search_limit": 10,
+      "recommendations_limit": 10,
+      "playlist_load_limit": 50,
+      "album_load_limit": 50,
+      "artist_load_limit": 20,
+      "decryption": {
+        "secret_key": "38346591"
+      },
+      "api_url": "https://www.jiosaavn.com/api.php"
+    },
+    "spotify": {
+      "enabled": true,
+      "search_limit": 10,
+      "recommendations_limit": 10,
+      "playlist_load_limit": 6,
+      "album_load_limit": 6,
+      "playlist_page_load_concurrency": 10,
+      "album_page_load_concurrency": 5,
+      "track_resolve_concurrency": 50,
+      "client_id": null,
+      "client_secret": null
+    },
+    "soundcloud": {
+      "enabled": true,
+      "search_limit": 10,
+      "playlist_load_limit": 100,
+      "client_id": null
+    },
+    "applemusic": {
+      "enabled": true,
+      "country_code": "us",
+      "playlist_load_limit": 0,
+      "album_load_limit": 0,
+      "playlist_page_load_concurrency": 5,
+      "album_page_load_concurrency": 5
+    },
+    "deezer": {
+      "enabled": true
+    },
+    "http": {
+      "enabled": true
+    },
+    "local": {
+      "enabled": false
+    }
+  },
+  "route_planner": {
+    "enabled": false,
+    "cidrs": [],
+    "excluded_ips": []
+  },
+  "player": {
+    "mirrors": {
+      "providers": [
+        "ytsearch:%ISRC%",
+        "ytsearch:%QUERY%",
+        "scsearch:%QUERY%"
+      ]
+    }
+  }
+}

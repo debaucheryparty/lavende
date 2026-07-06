@@ -44,8 +44,6 @@ env/
 .env
 .env.*
 
-# Configuration (contains API keys)
-source.json
 
 # Logs
 npm-debug.log*

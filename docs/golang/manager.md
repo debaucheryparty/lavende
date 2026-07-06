@@ -9,7 +9,7 @@ The `LavendeManager` acts as the orchestrator for your audio sessions in Go. It 
 Because Lavende leverages standard Discord voice protocol principles, you must provide it with a mechanism to send payloads back to Discord's Voice Gateway.
 
 > [!IMPORTANT]
-> Initialize the manager once, globally, before your Discord bot starts processing commands.
+> Initialize the manager once, globally, after your Discord bot is ready. Lavende works with **Disgo** (not discordgo).
 
 ### Initialization Parameters
 
@@ -19,30 +19,62 @@ Because Lavende leverages standard Discord voice protocol principles, you must p
 | `Client.Id` | `string` | Yes | Your Bot's Application ID. |
 | `Client.Username` | `*string` | Yes | Your Bot's Username. |
 
-### Example Setup (discordgo)
+### Example Setup (Disgo)
 
 ```go
 import (
-    "github.com/bwmarrin/discordgo"
+    "context"
+    "github.com/disgoorg/disgo"
+    "github.com/disgoorg/disgo/bot"
+    "github.com/disgoorg/disgo/events"
+    "github.com/disgoorg/disgo/gateway"
     "lavende"
 )
 
 var manager *lavende.LavendeManager
 
-func initAudio(s *discordgo.Session) {
+func main() {
+    token := os.Getenv("DISCORD_TOKEN")
+    
+    client, err := disgo.New(token,
+        bot.WithGatewayConfigOpts(
+            gateway.WithIntents(
+                gateway.IntentGuilds |
+                gateway.IntentGuildMessages |
+                gateway.IntentMessageContent |
+                gateway.IntentGuildVoiceStates,
+            ),
+        ),
+        bot.WithEventListenerFunc(onReady),
+        bot.WithEventListenerFunc(onVoiceStateUpdate),
+        bot.WithEventListenerFunc(onVoiceServerUpdate),
+    )
+    
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    ctx := context.Background()
+    client.OpenGateway(ctx)
+}
+
+func onReady(event *events.Ready) {
+    log.Printf("Logged in as %s", event.User.Username)
+    
     opts := lavende.LavendeManagerOptions{
         SendToShard: func(guildId string, payload interface{}) {
-            // Write payload to websocket for the specific shard handling this guild
-            _ = s.GatewayWriteStruct(payload)
+            // Disgo automatically handles sending to the gateway
+            _ = client.Gateway().Send(context.Background(), payload)
         },
     }
-    opts.Client.Id = s.State.User.ID
-    opts.Client.Username = &s.State.User.Username
-
+    opts.Client.Id = event.User.ID.String()
+    username := event.User.Username
+    opts.Client.Username = &username
+    
     manager = lavende.NewLavendeManager(opts)
     manager.Init(nil)
     
-    fmt.Println("Lavende Manager Initialized")
+    log.Println("Lavende Manager Initialized")
 }
 ```
 
@@ -52,36 +84,36 @@ func initAudio(s *discordgo.Session) {
 
 Lavende requires `VOICE_STATE_UPDATE` and `VOICE_SERVER_UPDATE` Discord Gateway events to negotiate the secure UDP voice connection.
 
-You must listen for these events via your Discord library (e.g., `discordgo`) and pipe the raw struct equivalents into the manager.
+You must listen for these events via Disgo and pipe the raw struct equivalents into the manager.
 
 ```go
-s.AddHandler(func(s *discordgo.Session, v *discordgo.VoiceStateUpdate) {
+func onVoiceStateUpdate(event *events.VoiceStateUpdate) {
     // Only forward if the voice state update is for our bot!
-    if manager != nil && v.UserID == s.State.User.ID {
+    if manager != nil && event.VoiceState.UserID == client.ApplicationID() {
         manager.SendRawData(map[string]interface{}{
             "t": "VOICE_STATE_UPDATE",
             "d": map[string]interface{}{
-                "user_id":    v.UserID,
-                "guild_id":   v.GuildID,
-                "session_id": v.SessionID,
-                "channel_id": v.ChannelID,
+                "user_id":    event.VoiceState.UserID.String(),
+                "guild_id":   event.VoiceState.GuildID.String(),
+                "session_id": event.VoiceState.SessionID,
+                "channel_id": event.VoiceState.ChannelID.String(),
             },
         })
     }
-})
+}
 
-s.AddHandler(func(s *discordgo.Session, v *discordgo.VoiceServerUpdate) {
+func onVoiceServerUpdate(event *events.VoiceServerUpdate) {
     if manager != nil {
         manager.SendRawData(map[string]interface{}{
             "t": "VOICE_SERVER_UPDATE",
             "d": map[string]interface{}{
-                "guild_id": v.GuildID,
-                "token":    v.Token,
-                "endpoint": v.Endpoint,
+                "guild_id": event.GuildID.String(),
+                "token":    event.Token,
+                "endpoint": event.Endpoint,
             },
         })
     }
-})
+}
 ```
 
 > [!NOTE]

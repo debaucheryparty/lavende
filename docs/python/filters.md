@@ -70,13 +70,43 @@ The rotation filter applies a panning effect to simulate the audio moving around
 await player.filter_manager.toggle_rotation(0.3)
 ```
 
-### 4. Channel Forcing
+### 4. Tremolo & Vibrato
+
+Apply oscillating amplitude (tremolo) or pitch (vibrato) modulation effects.
+
+```python
+# Tremolo: oscillating amplitude
+await player.filter_manager.toggle_tremolo(4.0, 0.8)
+
+# Vibrato: oscillating pitch
+await player.filter_manager.toggle_vibrato(10.0, 1.0)
+```
+
+### 5. Rate Control
+
+Control the playback rate independently.
+
+```python
+await player.filter_manager.set_rate(1.0)
+```
+
+### 6. Volume Filter
+
+Apply volume multiplication (different from player volume).
+
+```python
+await player.filter_manager.set_volume(1.5)  # 150% volume
+```
+
+### 7. Channel Forcing
 
 Force the output into a specific channel configuration.
 
 ```python
 await player.filter_manager.set_audio_output('mono')
 await player.filter_manager.set_audio_output('stereo')
+await player.filter_manager.set_audio_output('left')
+await player.filter_manager.set_audio_output('right')
 ```
 
 ---

@@ -15,4 +15,7 @@ The Lavende Go package (`lavende`) bridges the gap between Go and the underlying
    - **[Players & Queue](./player.md)**: Handling guild audio and searches.
    - **[Filters](./filters.md)**: Applying real-time audio manipulation.
 
+> [!IMPORTANT]
+> You must create a `source.json` file in your project root directory for Lavende to work. See `_examples/golang/source.json` for configuration details.
+
 Because Lavende leverages Go's concurrency model alongside Rust's multi-threading, this implementation is exceptionally efficient, avoiding any blocking behaviors on your main application thread.

@@ -14,4 +14,7 @@ The Lavende Node.js wrapper provides a seamless integration with Discord librari
    - **[Players & Queue](./player.md)**: Manage audio playback and track queuing.
    - **[Filters](./filters.md)**: Apply DSP effects to the audio stream.
 
+> [!IMPORTANT]
+> You must create a `source.json` file in your project root directory for Lavende to work. See `_examples/node/source.json` for configuration details.
+
 Make sure you have Node.js 18+ installed. The wrapper internally utilizes native `.node` modules compiled via N-API, meaning it runs optimally without requiring external JVM installations.

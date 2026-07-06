@@ -12,6 +12,7 @@
   "type": "commonjs",
   "dependencies": {
     "discord.js": "^14.26.4",
-    "lavende": "file:../../src/node"
+    "dotenv": "^17.4.2",
+    "lavende": "0.1.13"
   }
 }
