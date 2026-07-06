@@ -5,6 +5,7 @@ The Lavende Rust library provides direct access to the core audio engine with fu
 ## Getting Started
 
 1. **Add Lavende to your Cargo.toml:**
+
    ```toml
    [dependencies]
    lavende = "0.1"

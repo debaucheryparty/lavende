@@ -26,18 +26,19 @@ player.apply_filters().await;
 
 Boost or cut specific frequency bands ranging from `0` to `14`.
 
-| Parameter | Type | Range | Description |
-| :--- | :--- | :--- | :--- |
-| `band` | `u8` | `0` to `14` | The specific frequency band. |
-| `gain` | `f64` | `-0.25` to `1.0` | The multiplier for the frequency. |
+| Parameter | Type  | Range            | Description                       |
+| :-------- | :---- | :--------------- | :-------------------------------- |
+| `band`    | `u8`  | `0` to `14`      | The specific frequency band.      |
+| `gain`    | `f64` | `-0.25` to `1.0` | The multiplier for the frequency. |
 
 **Example: Applying Bassboost**
+
 ```rust
 use lavende::EqBand;
 
 {
     let mut filter_mgr = player.filter_manager.write().await;
-    
+
     let bass_boost = vec![
         EqBand { band: 0, gain: 0.25 },
         EqBand { band: 1, gain: 0.30 },
@@ -45,7 +46,7 @@ use lavende::EqBand;
         EqBand { band: 3, gain: 0.10 },
         EqBand { band: 4, gain: 0.05 },
     ];
-    
+
     filter_mgr.set_equalizer(bass_boost);
 }
 
@@ -56,13 +57,14 @@ player.apply_filters().await;
 
 Independently manipulate speed and pitch of the audio stream.
 
-| Method | Argument | Range | Description |
-| :--- | :--- | :--- | :--- |
-| `set_speed(f64)` | `speed` | `0.01` - `10.0` | > 1.0 speeds up; < 1.0 slows down. |
-| `set_pitch(f64)` | `pitch` | `0.01` - `10.0` | > 1.0 raises pitch; < 1.0 lowers pitch. |
-| `set_rate(f64)` | `rate` | `0.01` - `10.0` | Playback rate modification. |
+| Method           | Argument | Range           | Description                             |
+| :--------------- | :------- | :-------------- | :-------------------------------------- |
+| `set_speed(f64)` | `speed`  | `0.01` - `10.0` | > 1.0 speeds up; < 1.0 slows down.      |
+| `set_pitch(f64)` | `pitch`  | `0.01` - `10.0` | > 1.0 raises pitch; < 1.0 lowers pitch. |
+| `set_rate(f64)`  | `rate`   | `0.01` - `10.0` | Playback rate modification.             |
 
 **Example: Nightcore Effect**
+
 ```rust
 {
     let mut filter_mgr = player.filter_manager.write().await;
@@ -73,6 +75,7 @@ player.apply_filters().await;
 ```
 
 **Example: Vaporwave Effect**
+
 ```rust
 {
     let mut filter_mgr = player.filter_manager.write().await;
@@ -83,6 +86,7 @@ player.apply_filters().await;
 ```
 
 **Combined Timescale**
+
 ```rust
 {
     let mut filter_mgr = player.filter_manager.write().await;
@@ -95,9 +99,9 @@ player.apply_filters().await;
 
 The rotation filter applies an oscillating panning effect to simulate audio orbiting around the listener.
 
-| Method | Argument | Description |
-| :--- | :--- | :--- |
-| `toggle_rotation(f64)` | `hz` | The rotation speed in Hertz. |
+| Method                 | Argument | Description                  |
+| :--------------------- | :------- | :--------------------------- |
+| `toggle_rotation(f64)` | `hz`     | The rotation speed in Hertz. |
 
 ```rust
 {
@@ -115,10 +119,10 @@ Apply oscillating amplitude (tremolo) or pitch (vibrato) modulation.
 ```rust
 {
     let mut filter_mgr = player.filter_manager.write().await;
-    
+
     // Tremolo: amplitude modulation
     filter_mgr.toggle_tremolo(4.0, 0.8);
-    
+
     // Vibrato: pitch modulation
     filter_mgr.toggle_vibrato(10.0, 1.0);
 }
@@ -132,16 +136,16 @@ Force audio output to specific channel configurations.
 ```rust
 {
     let mut filter_mgr = player.filter_manager.write().await;
-    
+
     // Mono output
     filter_mgr.set_audio_output("mono");
-    
+
     // Stereo output (default)
     filter_mgr.set_audio_output("stereo");
-    
+
     // Left channel only
     filter_mgr.set_audio_output("left");
-    
+
     // Right channel only
     filter_mgr.set_audio_output("right");
 }
@@ -155,7 +159,7 @@ Apply volume multiplication (different from player volume).
 ```rust
 {
     let mut filter_mgr = player.filter_manager.write().await;
-    
+
     // 150% volume
     filter_mgr.set_volume(1.5);
 }

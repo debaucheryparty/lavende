@@ -26,11 +26,11 @@ if not player:
 
 Lavende features an internal resolver that can translate raw queries or direct URLs into playable Track objects. The resolver response includes a `loadType` defining what was returned.
 
-| `loadType` | Description |
-| :--- | :--- |
-| `empty` | The query yielded no results. |
+| `loadType` | Description                                                     |
+| :--------- | :-------------------------------------------------------------- |
+| `empty`    | The query yielded no results.                                   |
 | `playlist` | A collection of tracks was returned (e.g., a YouTube playlist). |
-| `track` | A single track or search result was returned. |
+| `track`    | A single track or search result was returned.                   |
 
 ```python
 # The resolver expects the query and an arbitrary "requester" object
@@ -64,14 +64,14 @@ if not player.playing:
 
 You can mutate the state of the active audio stream using standard asynchronous methods.
 
-| Method | Description |
-| :--- | :--- |
-| `await player.pause(True/False)` | Pauses or unpauses the stream. |
-| `await player.resume()` | Resumes a paused stream. |
-| `await player.skip()` | Skips to the next track in the queue. |
-| `await player.destroy()` | Destroys the C-pointer, clears the queue, and drops the voice connection. |
-| `await player.seek(ms: int)` | Jumps to a specific millisecond timestamp in the current track. |
-| `await player.set_volume(vol: int)`| Updates the volume (0 to 1000). |
+| Method                              | Description                                                               |
+| :---------------------------------- | :------------------------------------------------------------------------ |
+| `await player.pause(True/False)`    | Pauses or unpauses the stream.                                            |
+| `await player.resume()`             | Resumes a paused stream.                                                  |
+| `await player.skip()`               | Skips to the next track in the queue.                                     |
+| `await player.destroy()`            | Destroys the C-pointer, clears the queue, and drops the voice connection. |
+| `await player.seek(ms: int)`        | Jumps to a specific millisecond timestamp in the current track.           |
+| `await player.set_volume(vol: int)` | Updates the volume (0 to 1000).                                           |
 
 ---
 

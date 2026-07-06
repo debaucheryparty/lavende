@@ -6,6 +6,7 @@ The Lavende Go package (`lavende`) bridges the gap between Go and the underlying
 
 1. **Install the package:**
    Ensure you have a working C compiler in your environment, as it compiles against `lavende_go.a`.
+
    ```bash
    go get lavende
    ```

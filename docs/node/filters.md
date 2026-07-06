@@ -21,17 +21,18 @@ const fm = player.filterManager;
 
 The equalizer lets you boost or cut specific frequency bands (ranging from `0` to `14`).
 
-| Parameter | Type | Range | Description |
-| :--- | :--- | :--- | :--- |
-| `band` | `number` | `0` to `14` | The specific frequency band. |
-| `gain` | `number` | `-0.25` to `1.0` | The multiplier for the frequency. |
+| Parameter | Type     | Range            | Description                       |
+| :-------- | :------- | :--------------- | :-------------------------------- |
+| `band`    | `number` | `0` to `14`      | The specific frequency band.      |
+| `gain`    | `number` | `-0.25` to `1.0` | The multiplier for the frequency. |
 
 **Example: Applying a Bassboost**
+
 ```typescript
 player.filterManager.equalizerBands = [
-    { band: 0, gain: 0.25 },
-    { band: 1, gain: 0.20 },
-    { band: 2, gain: 0.10 }
+  { band: 0, gain: 0.25 },
+  { band: 1, gain: 0.2 },
+  { band: 2, gain: 0.1 },
 ];
 // Must be called explicitly to flush changes to Rust
 await player.filterManager.applyPlayerFilters();
@@ -41,30 +42,32 @@ await player.filterManager.applyPlayerFilters();
 
 You can independently manipulate the speed and pitch of the audio stream.
 
-| Method | Argument | Range | Description |
-| :--- | :--- | :--- | :--- |
-| `setSpeed(speed: number)` | `speed` | `0.01` - `10.0` | > 1.0 speeds up; < 1.0 slows down. |
-| `setPitch(pitch: number)` | `pitch` | `0.01` - `10.0` | > 1.0 raises pitch; < 1.0 lowers pitch. |
+| Method                    | Argument | Range           | Description                             |
+| :------------------------ | :------- | :-------------- | :-------------------------------------- |
+| `setSpeed(speed: number)` | `speed`  | `0.01` - `10.0` | > 1.0 speeds up; < 1.0 slows down.      |
+| `setPitch(pitch: number)` | `pitch`  | `0.01` - `10.0` | > 1.0 raises pitch; < 1.0 lowers pitch. |
 
 **Example: Nightcore**
+
 ```typescript
 await player.filterManager.setSpeed(1.18);
-await player.filterManager.setPitch(1.30);
+await player.filterManager.setPitch(1.3);
 ```
 
 **Example: Vaporwave**
+
 ```typescript
 await player.filterManager.setSpeed(0.85);
-await player.filterManager.setPitch(0.80);
+await player.filterManager.setPitch(0.8);
 ```
 
 ### 3. Spatial 3D Audio
 
 The rotation filter applies an oscillating panning effect to simulate the audio orbiting the listener's head.
 
-| Method | Argument | Description |
-| :--- | :--- | :--- |
-| `toggleRotation(hz: number)` | `hz` | The speed of the rotation in Hertz. |
+| Method                       | Argument | Description                         |
+| :--------------------------- | :------- | :---------------------------------- |
+| `toggleRotation(hz: number)` | `hz`     | The speed of the rotation in Hertz. |
 
 ```typescript
 // Rotate the audio at 0.3 Hz
@@ -104,10 +107,10 @@ await player.filterManager.setVolume(1.5); // 150% volume
 Force the output into a specific channel configuration. Valid options are `'mono'`, `'stereo'`, `'left'`, or `'right'`.
 
 ```typescript
-await player.filterManager.setAudioOutput('mono');
-await player.filterManager.setAudioOutput('stereo');
-await player.filterManager.setAudioOutput('left');
-await player.filterManager.setAudioOutput('right');
+await player.filterManager.setAudioOutput("mono");
+await player.filterManager.setAudioOutput("stereo");
+await player.filterManager.setAudioOutput("left");
+await player.filterManager.setAudioOutput("right");
 ```
 
 ---

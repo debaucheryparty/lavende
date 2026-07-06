@@ -20,12 +20,13 @@ fm = player.filter_manager
 
 The equalizer allows you to boost or attenuate specific frequency bands. Lavende supports 15 standard bands (0 through 14).
 
-| Parameter | Type | Range | Description |
-| :--- | :--- | :--- | :--- |
-| `band` | `int` | `0` to `14` | The frequency band to target. |
-| `gain` | `float` | `-0.25` to `1.0` | The multiplier for the frequency. |
+| Parameter | Type    | Range            | Description                       |
+| :-------- | :------ | :--------------- | :-------------------------------- |
+| `band`    | `int`   | `0` to `14`      | The frequency band to target.     |
+| `gain`    | `float` | `-0.25` to `1.0` | The multiplier for the frequency. |
 
 **Example: Applying a Bassboost**
+
 ```python
 player.filter_manager.equalizer_bands = [
     {"band": 0, "gain": 0.25},
@@ -40,18 +41,20 @@ await player.filter_manager.apply_player_filters()
 
 You can independently manipulate the speed and pitch of the audio stream.
 
-| Method | Argument | Range | Description |
-| :--- | :--- | :--- | :--- |
-| `set_speed(float)` | `speed` | `0.01` - `10.0` | > 1.0 speeds up; < 1.0 slows down. |
-| `set_pitch(float)` | `pitch` | `0.01` - `10.0` | > 1.0 raises pitch; < 1.0 lowers pitch. |
+| Method             | Argument | Range           | Description                             |
+| :----------------- | :------- | :-------------- | :-------------------------------------- |
+| `set_speed(float)` | `speed`  | `0.01` - `10.0` | > 1.0 speeds up; < 1.0 slows down.      |
+| `set_pitch(float)` | `pitch`  | `0.01` - `10.0` | > 1.0 raises pitch; < 1.0 lowers pitch. |
 
 **Example: Nightcore**
+
 ```python
 await player.filter_manager.set_speed(1.18)
 await player.filter_manager.set_pitch(1.30)
 ```
 
 **Example: Vaporwave**
+
 ```python
 await player.filter_manager.set_speed(0.85)
 await player.filter_manager.set_pitch(0.80)
@@ -61,9 +64,9 @@ await player.filter_manager.set_pitch(0.80)
 
 The rotation filter applies a panning effect to simulate the audio moving around the listener's head.
 
-| Method | Argument | Description |
-| :--- | :--- | :--- |
-| `toggle_rotation(float)` | `hz` | The speed of the rotation in Hertz. |
+| Method                   | Argument | Description                         |
+| :----------------------- | :------- | :---------------------------------- |
+| `toggle_rotation(float)` | `hz`     | The speed of the rotation in Hertz. |
 
 ```python
 # Rotate the audio at 0.3 Hz

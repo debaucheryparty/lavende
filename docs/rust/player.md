@@ -28,12 +28,12 @@ if let Some(player) = manager.get_player("guild_id") {
 
 Use the player's `search` method or the standalone `load` function to resolve tracks from URLs or search queries.
 
-| `loadType` | Description |
-| :--- | :--- |
-| `"empty"` | The query yielded no results. |
-| `"playlist"` | A collection of tracks was returned. |
-| `"track"` | A single track was returned. |
-| `"search"` | Multiple search results were returned. |
+| `loadType`   | Description                            |
+| :----------- | :------------------------------------- |
+| `"empty"`    | The query yielded no results.          |
+| `"playlist"` | A collection of tracks was returned.   |
+| `"track"`    | A single track was returned.           |
+| `"search"`   | Multiple search results were returned. |
 
 ```rust
 use lavende::load;
@@ -86,16 +86,16 @@ if !player.playing {
 
 Control playback state with async methods.
 
-| Method | Description |
-| :--- | :--- |
-| `await player.pause(bool)` | Pauses (`true`) or unpauses (`false`) the stream. |
-| `await player.resume()` | Resumes a paused stream. |
-| `await player.skip()` | Skips to the next track. |
-| `await player.stop()` | Stops playback and clears current track. |
-| `await player.seek(i64)` | Jumps to a millisecond timestamp. |
-| `await player.set_volume(u32)` | Sets volume (0 to 100). |
-| `await player.disconnect()` | Disconnects from voice channel. |
-| `await player.destroy(Option<String>)` | Destroys the player and frees resources. |
+| Method                                 | Description                                       |
+| :------------------------------------- | :------------------------------------------------ |
+| `await player.pause(bool)`             | Pauses (`true`) or unpauses (`false`) the stream. |
+| `await player.resume()`                | Resumes a paused stream.                          |
+| `await player.skip()`                  | Skips to the next track.                          |
+| `await player.stop()`                  | Stops playback and clears current track.          |
+| `await player.seek(i64)`               | Jumps to a millisecond timestamp.                 |
+| `await player.set_volume(u32)`         | Sets volume (0 to 100).                           |
+| `await player.disconnect()`            | Disconnects from voice channel.                   |
+| `await player.destroy(Option<String>)` | Destroys the player and frees resources.          |
 
 ```rust
 // Pause playback
@@ -126,25 +126,25 @@ The queue is protected by a `RwLock` for thread-safe access.
 ```rust
 {
     let mut queue = player.queue.write().await;
-    
+
     // Add single track
     queue.add(track);
-    
+
     // Add multiple tracks
     queue.add_multiple(vec![track1, track2, track3]);
-    
+
     // Remove track by index
     queue.remove(0);
-    
+
     // Clear all tracks
     queue.clear();
-    
+
     // Shuffle queue
     queue.shuffle();
-    
+
     // Get next track
     let next = queue.next();
-    
+
     // Queue info
     let size = queue.size();
     let is_empty = queue.is_empty();

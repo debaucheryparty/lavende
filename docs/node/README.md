@@ -5,6 +5,7 @@ The Lavende Node.js wrapper provides a seamless integration with Discord librari
 ## Getting Started
 
 1. **Install the package:**
+
    ```bash
    npm install lavende
    ```

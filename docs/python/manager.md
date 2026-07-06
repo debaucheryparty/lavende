@@ -13,10 +13,10 @@ Lavende relies on your Discord client to handle WebSocket communication. You mus
 
 ### Initialization Parameters
 
-| Parameter | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| `send_to_shard` | `Callable[[str, dict], Coroutine]` | Yes | An async function that routes a payload to the correct WebSocket shard. |
-| `client` | `Dict[str, str]` | Yes | A dictionary containing `"id"` and `"username"` of your bot. |
+| Parameter       | Type                               | Required | Description                                                             |
+| :-------------- | :--------------------------------- | :------- | :---------------------------------------------------------------------- |
+| `send_to_shard` | `Callable[[str, dict], Coroutine]` | Yes      | An async function that routes a payload to the correct WebSocket shard. |
+| `client`        | `Dict[str, str]`                   | Yes      | A dictionary containing `"id"` and `"username"` of your bot.            |
 
 ### Example Setup
 
@@ -42,7 +42,7 @@ async def on_ready():
     manager = LavendeManager(
         send_to_shard=send_to_shard,
         client={
-            "id": str(bot.user.id), 
+            "id": str(bot.user.id),
             "username": bot.user.name
         }
     )
@@ -64,13 +64,13 @@ async def on_socket_raw_receive(msg):
     """Pipes all raw WebSocket traffic into the Lavende Manager."""
     if not manager:
         return
-        
+
     import json
     try:
         # Decode the byte payload if necessary
         raw = msg.decode('utf-8') if isinstance(msg, bytes) else msg
         packet = json.loads(raw)
-        
+
         # The Rust core will safely ignore non-voice events
         await manager.send_raw_data(packet)
     except Exception as e:

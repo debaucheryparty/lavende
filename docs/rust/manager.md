@@ -13,10 +13,10 @@ The manager requires a callback function that routes Discord Gateway payloads to
 
 ### Initialization Parameters
 
-| Parameter | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| `client_id` | `String` | Yes | Your bot's application/client ID. |
-| `send_to_shard_fn` | `F: Fn(String, serde_json::Value) + Send + Sync + 'static` | Yes | A function that routes payloads to Discord's Gateway. |
+| Parameter          | Type                                                       | Required | Description                                           |
+| :----------------- | :--------------------------------------------------------- | :------- | :---------------------------------------------------- |
+| `client_id`        | `String`                                                   | Yes      | Your bot's application/client ID.                     |
+| `send_to_shard_fn` | `F: Fn(String, serde_json::Value) + Send + Sync + 'static` | Yes      | A function that routes payloads to Discord's Gateway. |
 
 ### Example Setup
 
@@ -27,15 +27,15 @@ use serde_json::json;
 #[tokio::main]
 async fn main() {
     let client_id = "YOUR_BOT_CLIENT_ID".to_string();
-    
+
     // This closure will be called when Lavende needs to send data to Discord
     let send_to_shard = |guild_id: String, payload: serde_json::Value| {
         // In a real bot, you would send this to your Discord gateway connection
         println!("Sending to guild {}: {:?}", guild_id, payload);
     };
-    
+
     let manager = LavendeManager::new(client_id, send_to_shard);
-    
+
     println!("Lavende Manager initialized");
 }
 ```

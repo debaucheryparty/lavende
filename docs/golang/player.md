@@ -1,6 +1,6 @@
 # Players & Queues (Golang)
 
-A `Player` encapsulates the audio session and queue for a specific Discord Guild. 
+A `Player` encapsulates the audio session and queue for a specific Discord Guild.
 
 ---
 
@@ -31,11 +31,11 @@ if pVal, ok := manager.Players.Load(guildID); ok {
 
 The resolver queries external APIs and parses metadata. It returns a structured `ResolveResponse`.
 
-| `LoadType` | Description |
-| :--- | :--- |
-| `"empty"` | The query yielded no results. |
-| `"playlist"` | A collection of tracks was returned. |
-| `"track"` | A single track or search result was returned. |
+| `LoadType`   | Description                                   |
+| :----------- | :-------------------------------------------- |
+| `"empty"`    | The query yielded no results.                 |
+| `"playlist"` | A collection of tracks was returned.          |
+| `"track"`    | A single track or search result was returned. |
 
 ```go
 res, err := player.Search("query or URL", requester)
@@ -69,14 +69,14 @@ if !player.Playing {
 
 Control methods safely cross the CGO boundary to manipulate the internal C state in Rust.
 
-| Method | Description |
-| :--- | :--- |
-| `player.Pause(bool)` | Pauses (`true`) or unpauses (`false`) the stream. |
-| `player.Resume()` | Resumes a paused stream. |
-| `player.Skip()` | Skips to the next track in the queue. |
-| `player.Destroy(nil)` | Clears the queue, drops the connection, and frees C memory. |
-| `player.Seek(ms int)` | Jumps to a specific millisecond timestamp. |
-| `player.SetVolumeObj(int)`| Updates the volume (0 to 1000). |
+| Method                     | Description                                                 |
+| :------------------------- | :---------------------------------------------------------- |
+| `player.Pause(bool)`       | Pauses (`true`) or unpauses (`false`) the stream.           |
+| `player.Resume()`          | Resumes a paused stream.                                    |
+| `player.Skip()`            | Skips to the next track in the queue.                       |
+| `player.Destroy(nil)`      | Clears the queue, drops the connection, and frees C memory. |
+| `player.Seek(ms int)`      | Jumps to a specific millisecond timestamp.                  |
+| `player.SetVolumeObj(int)` | Updates the volume (0 to 1000).                             |
 
 ---
 

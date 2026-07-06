@@ -167,16 +167,16 @@ func main() {
 								}
 								selfMute, _ := d["self_mute"].(bool)
 								selfDeaf, _ := d["self_deaf"].(bool)
-								
+
 								log.Printf("Sending to Discord: guild=%s, channel=%v", guildIDSnowflake, channelIDPtr)
-								
+
 								updateData := gateway.MessageDataVoiceStateUpdate{
 									GuildID:   guildIDSnowflake,
 									ChannelID: channelIDPtr,
 									SelfMute:  selfMute,
 									SelfDeaf:  selfDeaf,
 								}
-								
+
 								if err := clientRef.Gateway().Send(context.Background(), gateway.OpcodeVoiceStateUpdate, updateData); err != nil {
 									log.Printf("ERROR sending voice update to gateway: %v", err)
 								} else {
@@ -470,5 +470,3 @@ func main() {
 	defer cancel()
 	client.Close(ctx)
 }
-
-

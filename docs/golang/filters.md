@@ -20,12 +20,13 @@ fm := player.FilterManager
 
 The equalizer allows you to boost or cut specific frequency bands (ranging from `0` to `14`).
 
-| Parameter | Type | Range | Description |
-| :--- | :--- | :--- | :--- |
-| `Band` | `int` | `0` to `14` | The specific frequency band. |
-| `Gain` | `float64` | `-0.25` to `1.0` | The multiplier for the frequency. |
+| Parameter | Type      | Range            | Description                       |
+| :-------- | :-------- | :--------------- | :-------------------------------- |
+| `Band`    | `int`     | `0` to `14`      | The specific frequency band.      |
+| `Gain`    | `float64` | `-0.25` to `1.0` | The multiplier for the frequency. |
 
 **Example: Applying a Bassboost**
+
 ```go
 player.FilterManager.EqualizerBands = []lavende.EqBand{
     {Band: 0, Gain: 0.25},
@@ -40,18 +41,20 @@ player.FilterManager.ApplyPlayerFilters()
 
 You can independently manipulate the speed and pitch of the audio stream.
 
-| Method | Argument | Range | Description |
-| :--- | :--- | :--- | :--- |
-| `SetSpeed(float64)` | `speed` | `0.01` - `10.0` | > 1.0 speeds up; < 1.0 slows down. |
-| `SetPitch(float64)` | `pitch` | `0.01` - `10.0` | > 1.0 raises pitch; < 1.0 lowers pitch. |
+| Method              | Argument | Range           | Description                             |
+| :------------------ | :------- | :-------------- | :-------------------------------------- |
+| `SetSpeed(float64)` | `speed`  | `0.01` - `10.0` | > 1.0 speeds up; < 1.0 slows down.      |
+| `SetPitch(float64)` | `pitch`  | `0.01` - `10.0` | > 1.0 raises pitch; < 1.0 lowers pitch. |
 
 **Example: Nightcore**
+
 ```go
 player.FilterManager.SetSpeed(1.18)
 player.FilterManager.SetPitch(1.30)
 ```
 
 **Example: Vaporwave**
+
 ```go
 player.FilterManager.SetSpeed(0.85)
 player.FilterManager.SetPitch(0.80)
@@ -61,9 +64,9 @@ player.FilterManager.SetPitch(0.80)
 
 The rotation filter applies an oscillating panning effect to simulate the audio orbiting the listener's head.
 
-| Method | Argument | Description |
-| :--- | :--- | :--- |
-| `ToggleRotation(float64)` | `hz` | The speed of the rotation in Hertz. |
+| Method                    | Argument | Description                         |
+| :------------------------ | :------- | :---------------------------------- |
+| `ToggleRotation(float64)` | `hz`     | The speed of the rotation in Hertz. |
 
 ```go
 // Rotate the audio at 0.3 Hz

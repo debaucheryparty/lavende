@@ -5,8 +5,9 @@ The Lavende Python wrapper offers a high-level API over the low-level FFI (Forei
 ## Getting Started
 
 1. **Install the package:**
+
    ```bash
-   pip install -e .
+   pip install lavende
    ```
 
 2. **Explore the Components:**

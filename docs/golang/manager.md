@@ -13,11 +13,11 @@ Because Lavende leverages standard Discord voice protocol principles, you must p
 
 ### Initialization Parameters
 
-| Parameter | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| `SendToShard` | `func(guildId string, payload interface{})` | Yes | A function mapping a Guild ID to the corresponding WebSocket shard for writing JSON payloads. |
-| `Client.Id` | `string` | Yes | Your Bot's Application ID. |
-| `Client.Username` | `*string` | Yes | Your Bot's Username. |
+| Parameter         | Type                                        | Required | Description                                                                                   |
+| :---------------- | :------------------------------------------ | :------- | :-------------------------------------------------------------------------------------------- |
+| `SendToShard`     | `func(guildId string, payload interface{})` | Yes      | A function mapping a Guild ID to the corresponding WebSocket shard for writing JSON payloads. |
+| `Client.Id`       | `string`                                    | Yes      | Your Bot's Application ID.                                                                    |
+| `Client.Username` | `*string`                                   | Yes      | Your Bot's Username.                                                                          |
 
 ### Example Setup (Disgo)
 
@@ -35,7 +35,7 @@ var manager *lavende.LavendeManager
 
 func main() {
     token := os.Getenv("DISCORD_TOKEN")
-    
+
     client, err := disgo.New(token,
         bot.WithGatewayConfigOpts(
             gateway.WithIntents(
@@ -49,18 +49,18 @@ func main() {
         bot.WithEventListenerFunc(onVoiceStateUpdate),
         bot.WithEventListenerFunc(onVoiceServerUpdate),
     )
-    
+
     if err != nil {
         log.Fatal(err)
     }
-    
+
     ctx := context.Background()
     client.OpenGateway(ctx)
 }
 
 func onReady(event *events.Ready) {
     log.Printf("Logged in as %s", event.User.Username)
-    
+
     opts := lavende.LavendeManagerOptions{
         SendToShard: func(guildId string, payload interface{}) {
             // Disgo automatically handles sending to the gateway
@@ -70,10 +70,10 @@ func onReady(event *events.Ready) {
     opts.Client.Id = event.User.ID.String()
     username := event.User.Username
     opts.Client.Username = &username
-    
+
     manager = lavende.NewLavendeManager(opts)
     manager.Init(nil)
-    
+
     log.Println("Lavende Manager Initialized")
 }
 ```

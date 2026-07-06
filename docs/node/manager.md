@@ -13,10 +13,10 @@ Because Lavende abstracts away the complexities of WebSocket communication, you 
 
 ### Initialization Parameters
 
-| Parameter | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| `sendToShard` | `(guildId: string, payload: any) => void` | Yes | A function that routes a raw JSON payload to the correct WebSocket shard. |
-| `client` | `{ id: string, username: string }` | Yes | An object containing `{ id, username }` of your bot. |
+| Parameter     | Type                                      | Required | Description                                                               |
+| :------------ | :---------------------------------------- | :------- | :------------------------------------------------------------------------ |
+| `sendToShard` | `(guildId: string, payload: any) => void` | Yes      | A function that routes a raw JSON payload to the correct WebSocket shard. |
+| `client`      | `{ id: string, username: string }`        | Yes      | An object containing `{ id, username }` of your bot.                      |
 
 ### Example Setup
 
@@ -26,73 +26,75 @@ You can use Lavende in standard JavaScript or heavily-typed TypeScript environme
 <summary><b>TypeScript Setup</b></summary>
 
 ```typescript
-import { Client, GatewayIntentBits } from 'discord.js';
-import { LavendeManager } from 'lavende';
+import { Client, GatewayIntentBits } from "discord.js";
+import { LavendeManager } from "lavende";
 
 const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildVoiceStates,
-    ]
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildVoiceStates,
+  ],
 });
 
 let manager: LavendeManager | null = null;
 
-client.once('ready', () => {
-    if (!client.user) return;
-    
-    manager = new LavendeManager({
-        sendToShard: (guildId: string, payload: any) => {
-            // Find the correct shard for this guild and dispatch the payload
-            client.guilds.cache.get(guildId)?.shard?.send(payload);
-        },
-        client: {
-            id: client.user.id,
-            username: client.user.username
-        }
-    });
-    
-    manager.init();
-    console.log("Lavende Manager Initialized Successfully");
+client.once("ready", () => {
+  if (!client.user) return;
+
+  manager = new LavendeManager({
+    sendToShard: (guildId: string, payload: any) => {
+      // Find the correct shard for this guild and dispatch the payload
+      client.guilds.cache.get(guildId)?.shard?.send(payload);
+    },
+    client: {
+      id: client.user.id,
+      username: client.user.username,
+    },
+  });
+
+  manager.init();
+  console.log("Lavende Manager Initialized Successfully");
 });
 ```
+
 </details>
 
 <details>
 <summary><b>JavaScript Setup</b></summary>
 
 ```javascript
-const { Client, GatewayIntentBits } = require('discord.js');
-const { LavendeManager } = require('lavende');
+const { Client, GatewayIntentBits } = require("discord.js");
+const { LavendeManager } = require("lavende");
 
 const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildVoiceStates,
-    ]
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildVoiceStates,
+  ],
 });
 
 let manager = null;
 
-client.once('ready', () => {
-    manager = new LavendeManager({
-        sendToShard: (guildId, payload) => {
-            client.guilds.cache.get(guildId)?.shard?.send(payload);
-        },
-        client: {
-            id: client.user.id,
-            username: client.user.username
-        }
-    });
-    
-    manager.init();
-    console.log("Lavende Manager Initialized Successfully");
+client.once("ready", () => {
+  manager = new LavendeManager({
+    sendToShard: (guildId, payload) => {
+      client.guilds.cache.get(guildId)?.shard?.send(payload);
+    },
+    client: {
+      id: client.user.id,
+      username: client.user.username,
+    },
+  });
+
+  manager.init();
+  console.log("Lavende Manager Initialized Successfully");
 });
 ```
+
 </details>
 
 ---
@@ -105,11 +107,11 @@ You must intercept raw socket payloads and pipe them directly into the manager.
 
 ```typescript
 // TypeScript & JavaScript
-client.on('raw', async (packet: any) => {
-    if (manager) {
-        // The Rust core will safely ignore non-voice events (like MESSAGE_CREATE)
-        manager.sendRawData(packet);
-    }
+client.on("raw", async (packet: any) => {
+  if (manager) {
+    // The Rust core will safely ignore non-voice events (like MESSAGE_CREATE)
+    manager.sendRawData(packet);
+  }
 });
 ```
 

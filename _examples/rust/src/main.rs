@@ -105,13 +105,16 @@ impl EventHandler for Handler {
                     .and_then(|vs| vs.channel_id);
 
                 let Some(channel_id) = voice_channel_id else {
-                    let _ = msg.reply(&ctx, "❌ You must be in a voice channel! Join a voice channel first.").await;
+                    let _ = msg
+                        .reply(
+                            &ctx,
+                            "❌ You must be in a voice channel! Join a voice channel first.",
+                        )
+                        .await;
                     return;
                 };
 
-                let songbird = songbird::get(&ctx)
-                    .await
-                    .expect("Songbird not initialized");
+                let songbird = songbird::get(&ctx).await.expect("Songbird not initialized");
 
                 match songbird.join(guild_id, channel_id).await {
                     Ok(_handler) => {
@@ -192,7 +195,10 @@ impl EventHandler for Handler {
                                 .channel_id
                                 .say(
                                     &ctx.http,
-                                    format!("📃 Added {} tracks from playlist", playlist.tracks.len()),
+                                    format!(
+                                        "📃 Added {} tracks from playlist",
+                                        playlist.tracks.len()
+                                    ),
                                 )
                                 .await;
 
@@ -239,9 +245,7 @@ impl EventHandler for Handler {
                     player.stop().await;
                     let _ = msg.react(&ctx, '⏹').await;
 
-                    let songbird = songbird::get(&ctx)
-                        .await
-                        .expect("Songbird not initialized");
+                    let songbird = songbird::get(&ctx).await.expect("Songbird not initialized");
                     let _ = songbird.leave(guild_id).await;
                 } else {
                     let _ = msg.reply(&ctx, "❌ No active player").await;
@@ -291,7 +295,8 @@ impl EventHandler for Handler {
                             ));
                         }
                         if queue.tracks.len() > 10 {
-                            response.push_str(&format!("\n...and {} more", queue.tracks.len() - 10));
+                            response
+                                .push_str(&format!("\n...and {} more", queue.tracks.len() - 10));
                         }
                         let _ = msg.reply(&ctx, response).await;
                     }
