@@ -1,6 +1,6 @@
 [package]
 name = "lavende-python"
-version = "0.1.16"
+version = "1.0.0"
 edition = "2021"
 
 [lib]
