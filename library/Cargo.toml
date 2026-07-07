@@ -1,6 +1,6 @@
 [package]
 name = "lavende-core"
-version = "0.1.8"
+version = "0.1.9"
 edition = "2024"
 description = "Core in-process Discord voice connection and playback engine"
 readme = "../README.md"
