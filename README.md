@@ -91,6 +91,62 @@ client.on("raw", (packet) => {
 client.login("token");
 ```
 
+## Quick Start
+
+1. Clone the repository:
+```bash
+git clone https://github.com/debaucheryparty/lavende.git
+cd lavende
+````
+
+2. Choose your preferred language from the `_examples` directory:
+
+   * Rust
+   * JavaScript / TypeScript
+   * Go
+   * Python
+
+3. Create a `.env` file and add your Discord bot token:
+
+```env
+TOKEN=YOUR_BOT_TOKEN
+```
+
+4. Install dependencies and run the example for your chosen language.
+
+### Node.js
+
+```bash
+cd _examples/node
+npm install
+node bot.js
+```
+
+### Python
+
+```bash
+cd _examples/python
+pip install -r requirements.txt
+python main.py
+```
+
+### Go
+
+```bash
+cd _examples/go
+go mod tidy
+go run .
+```
+
+### Rust
+
+```bash
+cd _examples/rust
+cargo run
+```
+
+For detailed guides, API documentation, and architecture information, see the `docs/` directory.
+
 ## Documentation
 
 Extensive documentation detailing the Rust architecture, the `LavendeManager`, `Player`, and `Filters` can be found in our official documentation directory:
