@@ -14,6 +14,8 @@ typedef void (*SendToShardCb)(const char*, const char*);
 
 typedef void (*EventCb)(const char*);
 
+void lavende_set_config_path(const char *path);
+
 void lavende_free_string(char *s);
 
 LavendeManager *lavende_manager_new(const char *client_id, SendToShardCb send_cb);

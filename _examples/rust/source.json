@@ -25,7 +25,9 @@
       "cipher": {
         "url": "https://cipher.kikkia.dev/api",
         "token": null
-      }
+      },
+      "refresh_tokens": [],
+      "get_oauth_token": false
     },
     "jiosaavn": {
       "enabled": true,
