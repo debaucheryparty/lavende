@@ -13,6 +13,7 @@ fn _lavende(m: &Bound<'_, PyModule>) -> PyResult<()> {
 }
 
 #[pyfunction]
+#[pyo3(signature = (path=None))]
 fn set_config_path(path: Option<String>) {
     lavende_core::set_config_path(path);
 }

@@ -301,8 +301,6 @@ impl Player {
             tokio::spawn(async move {
                 if let Ok(err) = err_rx.recv_async().await {
                     events_clone.send("error", json!({ "message": err }));
-                } else {
-                    events_clone.send("trackEnd", json!({}));
                 }
             });
         });
@@ -314,15 +312,24 @@ impl Player {
         let events_position = events.clone();
         let cancel_token_clone = cancel_token.clone();
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(std::time::Duration::from_millis(1000));
+            let mut interval = tokio::time::interval(std::time::Duration::from_millis(100));
+            let mut ticks = 0;
             while !cancel_token_clone.is_cancelled() {
                 interval.tick().await;
+                ticks += 1;
                 let handle_guard = track_handle_clone.lock().await;
                 if let Some(handle) = &*handle_guard {
                     let state = handle.get_state();
+                    if state == PlayState::Stopped {
+                        events_position.send("trackEnd", json!({ "reason": "FINISHED" }));
+                        break;
+                    }
                     if state == PlayState::Playing {
-                        let pos = handle.get_position();
-                        events_position.send("position", json!({ "position": pos }));
+                        if ticks >= 10 {
+                            let pos = handle.get_position();
+                            events_position.send("position", json!({ "position": pos }));
+                            ticks = 0;
+                        }
                     }
                 }
             }
@@ -340,6 +347,7 @@ impl Player {
             event_tx: None,
             frames_sent: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             frames_nulled: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            cancel_token: cancel_token.clone(),
         };
         let voice_gateway = VoiceGateway::new(gateway_config);
         tokio::spawn(async move {

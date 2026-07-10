@@ -1394,6 +1394,7 @@ pub mod session {
         pub event_tx: Option<UnboundedSender<LavendeEvent>>,
         pub frames_sent: Arc<std::sync::atomic::AtomicU64>,
         pub frames_nulled: Arc<std::sync::atomic::AtomicU64>,
+        pub cancel_token: CancellationToken,
     }
     impl VoiceGateway {
         pub fn new(config: VoiceGatewayConfig) -> Self {
@@ -1415,7 +1416,7 @@ pub mod session {
                     config.user_id,
                     config.channel_id,
                 ))),
-                outer_token: CancellationToken::new(),
+                outer_token: config.cancel_token,
                 policy: FailurePolicy::new(3),
             }
         }

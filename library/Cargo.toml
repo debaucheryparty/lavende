@@ -1,6 +1,6 @@
 [package]
 name = "lavende-core"
-version = "0.1.12"
+version = "0.1.13"
 edition = "2024"
 description = "Core in-process Discord voice connection and playback engine"
 readme = "../README.md"
@@ -57,13 +57,3 @@ uuid = { version = "1.8", features = ["v4"] }
 ctr = "0.9"
 time = { version = "=0.3.36", features = ["formatting", "macros", "local-offset"] }
 tracing-log = "0.2"
-
-[build-dependencies]
-
-[profile.dev]
-codegen-units = 1
-incremental = false
-
-[profile.release]
-codegen-units = 1
-

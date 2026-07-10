@@ -140,12 +140,7 @@ pub mod handle {
         }
         pub fn get_state(&self) -> PlaybackState {
             let s = self.state.load(Ordering::Acquire);
-            let mut state = PlaybackState::from(s);
-            if state != PlaybackState::Stopped && self.command_tx.is_disconnected() {
-                state = PlaybackState::Stopped;
-                self.state.store(state as u8, Ordering::Release);
-            }
-            state
+            PlaybackState::from(s)
         }
         pub fn get_position(&self) -> u64 {
             let samples = self.position.load(Ordering::Acquire);
