@@ -5,27 +5,42 @@ use std::sync::OnceLock;
 
 pub fn song_regex() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"https?://(?:www\.)?audiomack\.com/(?P<artist>[^/]+)/song/(?P<slug>[^/?#]+)").unwrap())
+    RE.get_or_init(|| {
+        Regex::new(r"https?://(?:www\.)?audiomack\.com/(?P<artist>[^/]+)/song/(?P<slug>[^/?#]+)")
+            .unwrap()
+    })
 }
 
 pub fn album_regex() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"https?://(?:www\.)?audiomack\.com/(?P<artist>[^/]+)/album/(?P<slug>[^/?#]+)").unwrap())
+    RE.get_or_init(|| {
+        Regex::new(r"https?://(?:www\.)?audiomack\.com/(?P<artist>[^/]+)/album/(?P<slug>[^/?#]+)")
+            .unwrap()
+    })
 }
 
 pub fn playlist_regex() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"https?://(?:www\.)?audiomack\.com/(?P<artist>[^/]+)/playlist/(?P<slug>[^/?#]+)").unwrap())
+    RE.get_or_init(|| {
+        Regex::new(
+            r"https?://(?:www\.)?audiomack\.com/(?P<artist>[^/]+)/playlist/(?P<slug>[^/?#]+)",
+        )
+        .unwrap()
+    })
 }
 
 pub fn artist_regex() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"https?://(?:www\.)?audiomack\.com/(?P<artist>[^/?#]+)(?:/songs)?/?$").unwrap())
+    RE.get_or_init(|| {
+        Regex::new(r"https?://(?:www\.)?audiomack\.com/(?P<artist>[^/?#]+)(?:/songs)?/?$").unwrap()
+    })
 }
 
 pub fn likes_regex() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"https?://(?:www\.)?audiomack\.com/(?P<artist>[^/]+)/likes").unwrap())
+    RE.get_or_init(|| {
+        Regex::new(r"https?://(?:www\.)?audiomack\.com/(?P<artist>[^/]+)/likes").unwrap()
+    })
 }
 
 pub fn parse_track(json: &Value) -> Option<Track> {

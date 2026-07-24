@@ -1,6 +1,6 @@
+use regex::Regex;
 use serde_json::Value;
 use std::sync::{Arc, OnceLock};
-use regex::Regex;
 
 pub fn path_regex() -> &'static Regex {
     static REGEX: OnceLock<Regex> = OnceLock::new();

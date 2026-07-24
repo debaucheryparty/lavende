@@ -1,4 +1,4 @@
-﻿use crate::common::types::AnyResult;
+use crate::common::types::AnyResult;
 use serde_json::{Value, json};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
@@ -106,11 +106,13 @@ impl YouTubeOAuth {
     }
 
     async fn poll_for_token(&self, device_code: String, interval: u64) {
-        let mut interval_timer =
-            tokio::time::interval(std::time::Duration::from_secs(interval));
+        let mut interval_timer = tokio::time::interval(std::time::Duration::from_secs(interval));
         loop {
             interval_timer.tick().await;
-            match self.fetch_refresh_token_from_device_code(&device_code).await {
+            match self
+                .fetch_refresh_token_from_device_code(&device_code)
+                .await
+            {
                 Ok(response) => {
                     if let Some(error) = response["error"].as_str() {
                         match error {
@@ -181,7 +183,9 @@ impl YouTubeOAuth {
         {
             let expiry = self.token_expiry.read().await;
             let token = self.access_token.read().await;
-            if let Some(t) = token.as_ref() && now < *expiry {
+            if let Some(t) = token.as_ref()
+                && now < *expiry
+            {
                 return Some(t.clone());
             }
         }
@@ -196,7 +200,11 @@ impl YouTubeOAuth {
                 Some(new_token)
             }
             Err(e) => {
-                tracing::error!("Failed to refresh YouTube token #{}: {}", idx % max_tokens, e);
+                tracing::error!(
+                    "Failed to refresh YouTube token #{}: {}",
+                    idx % max_tokens,
+                    e
+                );
                 None
             }
         }

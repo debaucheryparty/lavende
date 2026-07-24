@@ -4,7 +4,6 @@ build-backend = "maturin"
 
 [project]
 name = "lavende"
-version = "1.0.9"
 description = "In-process Discord voice connection and playback engine"
 requires-python = ">=3.8"
 license = { text = "GPL-3.0" }

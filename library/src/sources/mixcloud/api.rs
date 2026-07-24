@@ -1,6 +1,6 @@
 use crate::{
     protocol::tracks::{LoadResult, PlaylistData, PlaylistInfo},
-    sources::mixcloud::{extractor, MixcloudSource},
+    sources::mixcloud::{MixcloudSource, extractor},
 };
 use serde_json::{Value, json};
 use std::sync::Arc;

@@ -94,11 +94,7 @@ impl SpotifySource {
         })
     }
 
-    pub async fn get_autocomplete(
-        &self,
-        query: &str,
-        types: &[String],
-    ) -> Option<SearchResult> {
+    pub async fn get_autocomplete(&self, query: &str, types: &[String]) -> Option<SearchResult> {
         search_full(
             &self.client,
             &self.token_tracker,
@@ -205,13 +201,9 @@ impl SourcePlugin for SpotifySource {
             let id = caps.get(2).map(|m| m.as_str()).unwrap_or("");
             match type_str {
                 "track" => {
-                    if let Some(track_info) = fetch_track(
-                        &self.client,
-                        &self.token_tracker,
-                        id,
-                        isrc_binary_regex(),
-                    )
-                    .await
+                    if let Some(track_info) =
+                        fetch_track(&self.client, &self.token_tracker, id, isrc_binary_regex())
+                            .await
                     {
                         return LoadResult::Track(Track::new(track_info));
                     }
@@ -288,9 +280,8 @@ pub async fn fetch_metadata_isrc(
 ) -> Option<String> {
     let token = token_tracker.get_token().await?;
     let hex_id = api::base62_to_hex(id);
-    let url = format!(
-        "https://spclient.wg.spotify.com/metadata/4/track/{hex_id}?market=from_token"
-    );
+    let url =
+        format!("https://spclient.wg.spotify.com/metadata/4/track/{hex_id}?market=from_token");
 
     let resp = client
         .get(&url)
@@ -367,14 +358,7 @@ pub async fn fetch_track(
         "uri": format!("spotify:track:{id}")
     });
     let hash = "612585ae06ba435ad26369870deaae23b5c8800a256cd8a57e08eddc25a37294";
-    let data = api::partner_api_request(
-        client,
-        token_tracker,
-        "getTrack",
-        variables,
-        hash,
-    )
-    .await?;
+    let data = api::partner_api_request(client, token_tracker, "getTrack", variables, hash).await?;
 
     let track = data.pointer("/data/trackUnion")?;
     parse_generic_track(client, token_tracker, track, None, isrc_binary_regex).await
@@ -398,18 +382,13 @@ pub async fn fetch_album(
         "limit": PAGE_LIMIT
     });
 
-    let data = match api::partner_api_request(
-        client,
-        token_tracker,
-        "getAlbum",
-        base_vars.clone(),
-        HASH,
-    )
-    .await
-    {
-        Some(d) => d,
-        None => return LoadResult::Empty {},
-    };
+    let data =
+        match api::partner_api_request(client, token_tracker, "getAlbum", base_vars.clone(), HASH)
+            .await
+        {
+            Some(d) => d,
+            None => return LoadResult::Empty {},
+        };
 
     let album = match data.pointer("/data/albumUnion") {
         Some(a) => a,
@@ -675,8 +654,7 @@ pub async fn fetch_artist(
                 let c = client.clone();
                 let tt = token_tracker.clone();
                 let re = isrc_binary_regex.to_owned();
-                if let Some(track_info) =
-                    parse_generic_track(&c, &tt, track_data, None, &re).await
+                if let Some(track_info) = parse_generic_track(&c, &tt, track_data, None, &re).await
                 {
                     tracks.push(Track::new(track_info));
                 }
@@ -761,7 +739,9 @@ pub async fn fetch_recommendations(
         if let Some(resp) = resp {
             if resp.status().is_success() {
                 if let Ok(json) = resp.json::<Value>().await {
-                    if let Some(playlist_uri) = json.pointer("/mediaItems/0/uri").and_then(|v| v.as_str()) {
+                    if let Some(playlist_uri) =
+                        json.pointer("/mediaItems/0/uri").and_then(|v| v.as_str())
+                    {
                         if let Some(id) = playlist_uri.split(':').next_back() {
                             return Err(id.to_owned());
                         }
@@ -772,13 +752,10 @@ pub async fn fetch_recommendations(
     }
 
     let track_id = seed.strip_prefix("track:").unwrap_or(&seed);
-    Ok(fetch_pathfinder_recommendations(
-        client,
-        token_tracker,
-        track_id,
-        recommendations_limit,
+    Ok(
+        fetch_pathfinder_recommendations(client, token_tracker, track_id, recommendations_limit)
+            .await,
     )
-    .await)
 }
 
 pub async fn fetch_pathfinder_recommendations(
@@ -863,20 +840,15 @@ pub async fn search_full(
         "includePreReleases": false
     });
     let hash = "fcad5a3e0d5af727fb76966f06971c19cfa2275e6ff7671196753e008611873c";
-    let data = match api::partner_api_request(
-        client,
-        token_tracker,
-        "searchDesktop",
-        variables,
-        hash,
-    )
-    .await
-    {
-        Some(d) => d,
-        None => {
-            return None;
-        }
-    };
+    let data =
+        match api::partner_api_request(client, token_tracker, "searchDesktop", variables, hash)
+            .await
+        {
+            Some(d) => d,
+            None => {
+                return None;
+            }
+        };
 
     let mut tracks = Vec::new();
     let mut albums = Vec::new();

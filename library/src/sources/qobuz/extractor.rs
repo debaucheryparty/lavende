@@ -43,15 +43,14 @@ impl super::QobuzSource {
         let album_url = json["album"]["id"]
             .as_i64()
             .map(|id| format!("https://open.qobuz.com/album/{id}"));
-        let artist_artwork_url = if !json["album"]["artist"].is_null()
-            && !json["album"]["artist"]["image"].is_null()
-        {
-            json["album"]["artist"]["image"]
-                .as_str()
-                .map(|s| s.to_owned())
-        } else {
-            None
-        };
+        let artist_artwork_url =
+            if !json["album"]["artist"].is_null() && !json["album"]["artist"]["image"].is_null() {
+                json["album"]["artist"]["image"]
+                    .as_str()
+                    .map(|s| s.to_owned())
+            } else {
+                None
+            };
         QobuzTrack {
             info: TrackInfo {
                 identifier,

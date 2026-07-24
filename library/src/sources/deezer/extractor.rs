@@ -182,9 +182,7 @@ pub fn parse_recommendation_track(json: &Value) -> Option<Track> {
         .pointer("/ARTISTS/0/ART_PICTURE")
         .and_then(|v| v.as_str())
         .map(|id| {
-            format!(
-                "https://cdn-images.dzcdn.net/images/cover/{id}/1000x1000-000000-80-0-0.jpg"
-            )
+            format!("https://cdn-images.dzcdn.net/images/cover/{id}/1000x1000-000000-80-0-0.jpg")
         });
     let preview_url = json.pointer("/MEDIA/0/HREF").and_then(|v| v.as_str());
     track.plugin_info = json!({

@@ -1,4 +1,4 @@
-﻿use crate::common::types::SharedRw;
+use crate::common::types::SharedRw;
 use regex::Regex;
 use std::{
     sync::{Arc, OnceLock},
@@ -12,9 +12,7 @@ const CLIENT_ID_REFRESH_INTERVAL: Duration = Duration::from_secs(3600);
 
 fn asset_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        Regex::new(r"https://a-v2\.sndcdn\.com/assets/[a-zA-Z0-9_-]+\.js").unwrap()
-    })
+    RE.get_or_init(|| Regex::new(r"https://a-v2\.sndcdn\.com/assets/[a-zA-Z0-9_-]+\.js").unwrap())
 }
 
 fn client_id_re() -> &'static Regex {
@@ -60,7 +58,9 @@ impl SoundCloudTokenTracker {
     pub async fn get_client_id(&self) -> Option<String> {
         {
             let guard = self.client_id.read().await;
-            if !guard.is_stale() && let Some(id) = &guard.value {
+            if !guard.is_stale()
+                && let Some(id) = &guard.value
+            {
                 return Some(id.clone());
             }
         }
@@ -83,7 +83,9 @@ impl SoundCloudTokenTracker {
                 return None;
             }
         };
-        if let Some(caps) = client_id_re().captures(&html) && let Some(m) = caps.get(1) {
+        if let Some(caps) = client_id_re().captures(&html)
+            && let Some(m) = caps.get(1)
+        {
             let id = m.as_str().to_owned();
             trace!("SoundCloud: Found client_id in main page: {id}");
             self.store_client_id(id.clone()).await;
@@ -110,7 +112,9 @@ impl SoundCloudTokenTracker {
                 },
                 Err(_) => continue,
             };
-            if let Some(caps) = client_id_re().captures(&js) && let Some(m) = caps.get(1) {
+            if let Some(caps) = client_id_re().captures(&js)
+                && let Some(m) = caps.get(1)
+            {
                 let id = m.as_str().to_owned();
                 trace!("SoundCloud: Found client_id in asset {url}: {id}");
                 self.store_client_id(id.clone()).await;

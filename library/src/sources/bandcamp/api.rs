@@ -6,10 +6,7 @@ pub fn base_request(builder: reqwest::RequestBuilder) -> reqwest::RequestBuilder
 }
 
 pub async fn fetch_stream_url(client: &Arc<reqwest::Client>, uri: &str) -> Option<String> {
-    let resp = base_request(client.get(uri))
-        .send()
-        .await
-        .ok()?;
+    let resp = base_request(client.get(uri)).send().await.ok()?;
     if !resp.status().is_success() {
         return None;
     }
@@ -17,13 +14,17 @@ pub async fn fetch_stream_url(client: &Arc<reqwest::Client>, uri: &str) -> Optio
     super::extractor::extract_stream_url(&body)
 }
 
-pub async fn fetch_track_data(client: &Arc<reqwest::Client>, url: &str) -> Option<(Value, Option<String>)> {
+pub async fn fetch_track_data(
+    client: &Arc<reqwest::Client>,
+    url: &str,
+) -> Option<(Value, Option<String>)> {
     let resp = base_request(client.get(url)).send().await.ok()?;
     if !resp.status().is_success() {
         return None;
     }
     let body = resp.text().await.ok()?;
-    let tralbum_data = if let Some(match_cap) = super::extractor::tralbum_pattern().captures(&body) {
+    let tralbum_data = if let Some(match_cap) = super::extractor::tralbum_pattern().captures(&body)
+    {
         let decoded = match_cap[1].replace("&quot;", "\"");
         serde_json::from_str(&decoded).ok()?
     } else {

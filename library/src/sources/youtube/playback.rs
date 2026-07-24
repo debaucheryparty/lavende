@@ -1,4 +1,4 @@
-﻿use crate::{
+use crate::{
     common::types::{AnyResult, AudioFormat},
     config::HttpProxyConfig,
     sources::{
@@ -6,8 +6,8 @@
         youtube::{
             cipher::YouTubeCipherManager,
             innertube::{
-                best_audio_format, check_playability,
-                player_request, resolve_format_url, ClientProfile,
+                ClientProfile, best_audio_format, check_playability, player_request,
+                resolve_format_url,
             },
             oauth::YouTubeOAuth,
             stream::create_reader,
@@ -43,7 +43,10 @@ impl PlayableTrack for YoutubeTrack {
             let name = client.label;
             match self.resolve_url_for_client(client).await {
                 Ok(Some(url)) => {
-                    info!("YoutubeTrack: resolved '{}' using '{}'", self.identifier, name);
+                    info!(
+                        "YoutubeTrack: resolved '{}' using '{}'",
+                        self.identifier, name
+                    );
                     let is_hls = url.contains(".m3u8") || url.contains("/playlist");
                     let hint = Some(detect_audio_kind(&url, is_hls));
 
@@ -58,22 +61,34 @@ impl PlayableTrack for YoutubeTrack {
                     {
                         Ok(reader) => return Ok(ResolvedTrack::new(reader, hint)),
                         Err(e) => {
-                            warn!("YoutubeTrack: reader failed for '{}': {} -- trying next client", name, e);
+                            warn!(
+                                "YoutubeTrack: reader failed for '{}': {} -- trying next client",
+                                name, e
+                            );
                             last_error = e.to_string();
                         }
                     }
                 }
                 Ok(None) => {
-                    debug!("YoutubeTrack: client '{}' returned no stream URL for '{}'", name, self.identifier);
+                    debug!(
+                        "YoutubeTrack: client '{}' returned no stream URL for '{}'",
+                        name, self.identifier
+                    );
                 }
                 Err(e) => {
-                    warn!("YoutubeTrack: client '{}' failed for '{}': {}", name, self.identifier, e);
+                    warn!(
+                        "YoutubeTrack: client '{}' failed for '{}': {}",
+                        name, self.identifier, e
+                    );
                     last_error = e.to_string();
                 }
             }
         }
 
-        error!("YoutubeTrack: all clients failed for '{}': {}", self.identifier, last_error);
+        error!(
+            "YoutubeTrack: all clients failed for '{}': {}",
+            self.identifier, last_error
+        );
         Err(format!("All clients failed: {}", last_error))
     }
 }
@@ -81,7 +96,10 @@ impl PlayableTrack for YoutubeTrack {
 impl YoutubeTrack {
     async fn resolve_url_for_client(&self, client: &ClientProfile) -> AnyResult<Option<String>> {
         let sig_timestamp = self.cipher_manager.get_signature_timestamp().await.ok();
-        let auth = if client.can_search || client.client_name == "ANDROID" || client.client_name == "IOS" {
+        let auth = if client.can_search
+            || client.client_name == "ANDROID"
+            || client.client_name == "IOS"
+        {
             self.oauth.get_auth_header().await
         } else {
             None
@@ -98,20 +116,29 @@ impl YoutubeTrack {
         .await?;
 
         if let Err(e) = check_playability(&response.playability_status) {
-            warn!("{} player: video {} not playable: {}", client.label, self.identifier, e);
+            warn!(
+                "{} player: video {} not playable: {}",
+                client.label, self.identifier, e
+            );
             return Err(e.into());
         }
 
         let sd = match response.streaming_data {
             Some(sd) => sd,
             None => {
-                error!("{} player: no streamingData for {}", client.label, self.identifier);
+                error!(
+                    "{} player: no streamingData for {}",
+                    client.label, self.identifier
+                );
                 return Ok(None);
             }
         };
 
         if let Some(hls) = sd.hls_manifest_url.as_ref() {
-            debug!("{} player: using HLS manifest for {}", client.label, self.identifier);
+            debug!(
+                "{} player: using HLS manifest for {}",
+                client.label, self.identifier
+            );
             return Ok(Some(hls.to_string()));
         }
 
@@ -120,10 +147,16 @@ impl YoutubeTrack {
             match resolve_format_url(best, &player_page_url, &self.cipher_manager).await {
                 Ok(Some(url)) => return Ok(Some(url)),
                 Ok(None) => {
-                    warn!("{} player: best format had no resolvable URL for {}", client.label, self.identifier);
+                    warn!(
+                        "{} player: best format had no resolvable URL for {}",
+                        client.label, self.identifier
+                    );
                 }
                 Err(e) => {
-                    error!("{} player: cipher resolution failed for {}: {}", client.label, self.identifier, e);
+                    error!(
+                        "{} player: cipher resolution failed for {}: {}",
+                        client.label, self.identifier, e
+                    );
                     return Err(e);
                 }
             }
@@ -131,7 +164,6 @@ impl YoutubeTrack {
 
         Ok(None)
     }
-
 }
 
 pub fn detect_audio_kind(url: &str, is_hls: bool) -> AudioFormat {

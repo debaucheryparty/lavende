@@ -38,10 +38,7 @@ impl PlayableTrack for YandexMusicTrack {
     }
 }
 
-pub async fn fetch_download_url(
-    client: &Arc<reqwest::Client>,
-    id: &str,
-) -> Option<String> {
+pub async fn fetch_download_url(client: &Arc<reqwest::Client>, id: &str) -> Option<String> {
     let url = format!("https://api.music.yandex.net/tracks/{}/download-info", id);
     let resp = client.get(url).send().await.ok()?;
     let data: serde_json::Value = resp.json().await.ok()?;

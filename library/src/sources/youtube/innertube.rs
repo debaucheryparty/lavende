@@ -1,6 +1,6 @@
 use crate::{common::types::AnyResult, sources::youtube::cipher::YouTubeCipherManager};
-use serde_json::{Value, json};
 use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy)]
@@ -37,11 +37,17 @@ pub mod profiles {
         user_agent: ua::WEB,
         can_search: true,
         has_streams: true,
-        os_name: None, os_version: None, device_make: None, device_model: None,
-        android_sdk: None, platform: Some("DESKTOP"),
+        os_name: None,
+        os_version: None,
+        device_make: None,
+        device_model: None,
+        android_sdk: None,
+        platform: Some("DESKTOP"),
         referer: Some("https://www.youtube.com/"),
         origin: Some("https://www.youtube.com"),
-        params: None, client_screen: None, attestation_request: None,
+        params: None,
+        client_screen: None,
+        attestation_request: None,
     };
 
     pub static WEB_EMBEDDED: ClientProfile = ClientProfile {
@@ -52,11 +58,17 @@ pub mod profiles {
         user_agent: ua::WEB_EMBEDDED,
         can_search: false,
         has_streams: true,
-        os_name: None, os_version: None, device_make: None, device_model: None,
-        android_sdk: None, platform: Some("DESKTOP"),
+        os_name: None,
+        os_version: None,
+        device_make: None,
+        device_model: None,
+        android_sdk: None,
+        platform: Some("DESKTOP"),
         referer: Some("https://www.youtube.com/"),
         origin: Some("https://www.youtube.com"),
-        params: None, client_screen: None, attestation_request: None,
+        params: None,
+        client_screen: None,
+        attestation_request: None,
     };
 
     pub static WEB_REMIX: ClientProfile = ClientProfile {
@@ -67,11 +79,17 @@ pub mod profiles {
         user_agent: ua::WEB,
         can_search: true,
         has_streams: false,
-        os_name: None, os_version: None, device_make: None, device_model: None,
-        android_sdk: None, platform: None,
+        os_name: None,
+        os_version: None,
+        device_make: None,
+        device_model: None,
+        android_sdk: None,
+        platform: None,
         referer: Some("https://music.youtube.com/"),
         origin: Some("https://music.youtube.com"),
-        params: None, client_screen: None, attestation_request: None,
+        params: None,
+        client_screen: None,
+        attestation_request: None,
     };
 
     pub static ANDROID: ClientProfile = ClientProfile {
@@ -82,11 +100,17 @@ pub mod profiles {
         user_agent: ua::ANDROID,
         can_search: true,
         has_streams: true,
-        os_name: Some("Android"), os_version: Some("14"),
-        device_make: Some("Google"), device_model: Some("Pixel 6"),
-        android_sdk: Some("34"), platform: None,
-        referer: None, origin: None,
-        params: None, client_screen: None, attestation_request: None,
+        os_name: Some("Android"),
+        os_version: Some("14"),
+        device_make: Some("Google"),
+        device_model: Some("Pixel 6"),
+        android_sdk: Some("34"),
+        platform: None,
+        referer: None,
+        origin: None,
+        params: None,
+        client_screen: None,
+        attestation_request: None,
     };
 
     pub static ANDROID_VR: ClientProfile = ClientProfile {
@@ -97,11 +121,17 @@ pub mod profiles {
         user_agent: ua::ANDROID_VR,
         can_search: false,
         has_streams: true,
-        os_name: Some("Android"), os_version: Some("15"),
-        device_make: Some("Oculus"), device_model: Some("Quest 3"),
-        android_sdk: Some("35"), platform: None,
-        referer: None, origin: None,
-        params: None, client_screen: None, attestation_request: None,
+        os_name: Some("Android"),
+        os_version: Some("15"),
+        device_make: Some("Oculus"),
+        device_model: Some("Quest 3"),
+        android_sdk: Some("35"),
+        platform: None,
+        referer: None,
+        origin: None,
+        params: None,
+        client_screen: None,
+        attestation_request: None,
     };
 
     pub static IOS: ClientProfile = ClientProfile {
@@ -112,11 +142,17 @@ pub mod profiles {
         user_agent: ua::IOS,
         can_search: true,
         has_streams: true,
-        os_name: Some("iOS"), os_version: Some("18.2.0.22C152"),
-        device_make: Some("Apple"), device_model: Some("iPhone16,2"),
-        android_sdk: None, platform: None,
-        referer: None, origin: None,
-        params: None, client_screen: None, attestation_request: None,
+        os_name: Some("iOS"),
+        os_version: Some("18.2.0.22C152"),
+        device_make: Some("Apple"),
+        device_model: Some("iPhone16,2"),
+        android_sdk: None,
+        platform: None,
+        referer: None,
+        origin: None,
+        params: None,
+        client_screen: None,
+        attestation_request: None,
     };
 
     pub static TV: ClientProfile = ClientProfile {
@@ -127,10 +163,17 @@ pub mod profiles {
         user_agent: ua::TVHTML5,
         can_search: true,
         has_streams: true,
-        os_name: None, os_version: None, device_make: None, device_model: None,
-        android_sdk: None, platform: None,
-        referer: None, origin: None,
-        params: None, client_screen: None, attestation_request: None,
+        os_name: None,
+        os_version: None,
+        device_make: None,
+        device_model: None,
+        android_sdk: None,
+        platform: None,
+        referer: None,
+        origin: None,
+        params: None,
+        client_screen: None,
+        attestation_request: None,
     };
 
     pub static TV_CAST: ClientProfile = ClientProfile {
@@ -141,10 +184,17 @@ pub mod profiles {
         user_agent: "Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36 CrKey/1.54.248666",
         can_search: false,
         has_streams: true,
-        os_name: Some("Android"), os_version: None, device_make: None, device_model: None,
-        android_sdk: None, platform: None,
-        referer: None, origin: None,
-        params: None, client_screen: None, attestation_request: None,
+        os_name: Some("Android"),
+        os_version: None,
+        device_make: None,
+        device_model: None,
+        android_sdk: None,
+        platform: None,
+        referer: None,
+        origin: None,
+        params: None,
+        client_screen: None,
+        attestation_request: None,
     };
 
     pub static TV_EMBEDDED: ClientProfile = ClientProfile {
@@ -155,11 +205,17 @@ pub mod profiles {
         user_agent: ua::TVHTML5_SIMPLY,
         can_search: false,
         has_streams: true,
-        os_name: None, os_version: None, device_make: None, device_model: None,
-        android_sdk: None, platform: None,
+        os_name: None,
+        os_version: None,
+        device_make: None,
+        device_model: None,
+        android_sdk: None,
+        platform: None,
         referer: Some("https://www.youtube.com/"),
         origin: Some("https://www.youtube.com"),
-        params: Some("2AMB"), client_screen: None, attestation_request: None,
+        params: Some("2AMB"),
+        client_screen: None,
+        attestation_request: None,
     };
 
     pub static TV_SIMPLY: ClientProfile = ClientProfile {
@@ -170,10 +226,16 @@ pub mod profiles {
         user_agent: ua::TVHTML5_SIMPLY,
         can_search: false,
         has_streams: true,
-        os_name: None, os_version: None, device_make: None, device_model: None,
-        android_sdk: None, platform: None,
-        referer: None, origin: None,
-        params: Some("2AMB"), client_screen: None,
+        os_name: None,
+        os_version: None,
+        device_make: None,
+        device_model: None,
+        android_sdk: None,
+        platform: None,
+        referer: None,
+        origin: None,
+        params: Some("2AMB"),
+        client_screen: None,
         attestation_request: Some(r#"{"omitBotguardData":true}"#),
     };
 
@@ -185,10 +247,16 @@ pub mod profiles {
         user_agent: ua::TVHTML5_UNPLUGGED,
         can_search: false,
         has_streams: true,
-        os_name: None, os_version: None, device_make: None, device_model: None,
-        android_sdk: None, platform: None,
-        referer: None, origin: None,
-        params: Some("2AMB"), client_screen: Some("EMBED"),
+        os_name: None,
+        os_version: None,
+        device_make: None,
+        device_model: None,
+        android_sdk: None,
+        platform: None,
+        referer: None,
+        origin: None,
+        params: Some("2AMB"),
+        client_screen: Some("EMBED"),
         attestation_request: None,
     };
 
@@ -200,10 +268,17 @@ pub mod profiles {
         user_agent: ua::MWEB,
         can_search: true,
         has_streams: true,
-        os_name: None, os_version: None, device_make: None, device_model: None,
-        android_sdk: None, platform: None,
-        referer: None, origin: None,
-        params: None, client_screen: None, attestation_request: None,
+        os_name: None,
+        os_version: None,
+        device_make: None,
+        device_model: None,
+        android_sdk: None,
+        platform: None,
+        referer: None,
+        origin: None,
+        params: None,
+        client_screen: None,
+        attestation_request: None,
     };
 
     pub static MUSIC_ANDROID: ClientProfile = ClientProfile {
@@ -214,11 +289,17 @@ pub mod profiles {
         user_agent: "com.google.android.apps.youtube.music/8.47.54 (Linux; U; Android 14 gzip)",
         can_search: true,
         has_streams: false,
-        os_name: Some("Android"), os_version: Some("14"),
-        device_make: Some("Google"), device_model: Some("Pixel 6"),
-        android_sdk: Some("34"), platform: None,
-        referer: None, origin: None,
-        params: None, client_screen: None, attestation_request: None,
+        os_name: Some("Android"),
+        os_version: Some("14"),
+        device_make: Some("Google"),
+        device_model: Some("Pixel 6"),
+        android_sdk: Some("34"),
+        platform: None,
+        referer: None,
+        origin: None,
+        params: None,
+        client_screen: None,
+        attestation_request: None,
     };
 
     pub static WEB_PARENT_TOOLS: ClientProfile = ClientProfile {
@@ -229,17 +310,34 @@ pub mod profiles {
         user_agent: ua::WEB,
         can_search: false,
         has_streams: true,
-        os_name: None, os_version: None, device_make: None, device_model: None,
-        android_sdk: None, platform: None,
+        os_name: None,
+        os_version: None,
+        device_make: None,
+        device_model: None,
+        android_sdk: None,
+        platform: None,
         referer: Some("https://www.youtube.com/"),
         origin: Some("https://www.youtube.com"),
-        params: Some("2AMB"), client_screen: None, attestation_request: None,
+        params: Some("2AMB"),
+        client_screen: None,
+        attestation_request: None,
     };
 
     pub static ALL: &[&ClientProfile] = &[
-        &WEB, &WEB_EMBEDDED, &WEB_REMIX, &ANDROID, &ANDROID_VR,
-        &IOS, &TV, &TV_CAST, &TV_EMBEDDED, &TV_SIMPLY, &TV_UNPLUGGED,
-        &MWEB, &MUSIC_ANDROID, &WEB_PARENT_TOOLS,
+        &WEB,
+        &WEB_EMBEDDED,
+        &WEB_REMIX,
+        &ANDROID,
+        &ANDROID_VR,
+        &IOS,
+        &TV,
+        &TV_CAST,
+        &TV_EMBEDDED,
+        &TV_SIMPLY,
+        &TV_UNPLUGGED,
+        &MWEB,
+        &MUSIC_ANDROID,
+        &WEB_PARENT_TOOLS,
     ];
 
     pub fn by_name(name: &str) -> Option<&'static ClientProfile> {
@@ -255,11 +353,15 @@ pub mod profiles {
         match (upper, label) {
             ("TVHTML5", "Tv") | ("TV", "Tv") => true,
             ("TV_CAST", "TvCast") | ("TVHTML5_CAST", "TvCast") => true,
-            ("TV_EMBEDDED", "TvEmbedded") | ("TVHTML5_SIMPLY_EMBEDDED_PLAYER", "TvEmbedded") => true,
+            ("TV_EMBEDDED", "TvEmbedded") | ("TVHTML5_SIMPLY_EMBEDDED_PLAYER", "TvEmbedded") => {
+                true
+            }
             ("TV_SIMPLY", "TvSimply") | ("TVHTML5_SIMPLY", "TvSimply") => true,
             ("TV_UNPLUGGED", "TvUnplugged") | ("TVHTML5_UNPLUGGED", "TvUnplugged") => true,
             ("REMIX", "WebRemix") | ("MUSIC_WEB", "WebRemix") | ("WEB_REMIX", "WebRemix") => true,
-            ("MUSIC", "MusicAndroid") | ("MUSIC_ANDROID", "MusicAndroid") | ("ANDROID_MUSIC", "MusicAndroid") => true,
+            ("MUSIC", "MusicAndroid")
+            | ("MUSIC_ANDROID", "MusicAndroid")
+            | ("ANDROID_MUSIC", "MusicAndroid") => true,
             ("ANDROIDVR", "AndroidVR") | ("ANDROID_VR", "AndroidVR") => true,
             ("WEB_EMBEDDED", "WebEmbedded") | ("WEBEMBEDDED", "WebEmbedded") => true,
             ("WEB_PARENT_TOOLS", "WebParentTools") | ("WEBPARENTTOOLS", "WebParentTools") => true,
@@ -672,10 +774,7 @@ pub async fn resolve_format_url(
         return Ok(Some(resolved));
     }
 
-    let cipher_str = format
-        .signature_cipher
-        .as_ref()
-        .or(format.cipher.as_ref());
+    let cipher_str = format.signature_cipher.as_ref().or(format.cipher.as_ref());
 
     if let Some(cipher_str) = cipher_str
         && let Some((url, sig)) = decode_signature_cipher(cipher_str)

@@ -3,11 +3,7 @@ use serde_json::Value;
 
 const BASE_URL: &str = "https://api-v2.soundcloud.com";
 
-pub async fn api_resolve(
-    client: &reqwest::Client,
-    url: &str,
-    client_id: &str,
-) -> AnyResult<Value> {
+pub async fn api_resolve(client: &reqwest::Client, url: &str, client_id: &str) -> AnyResult<Value> {
     let req_url = format!(
         "{}/resolve?url={}&client_id={}",
         BASE_URL,
@@ -70,9 +66,8 @@ pub async fn load_liked_tracks_api(
     user_id: &str,
     client_id: &str,
 ) -> AnyResult<Value> {
-    let liked_url = format!(
-        "{BASE_URL}/users/{user_id}/likes?limit=200&offset=0&client_id={client_id}"
-    );
+    let liked_url =
+        format!("{BASE_URL}/users/{user_id}/likes?limit=200&offset=0&client_id={client_id}");
     let resp = client.get(&liked_url).send().await?;
     if !resp.status().is_success() {
         return Err(format!("Likes request failed: status={}", resp.status()).into());

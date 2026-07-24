@@ -7,9 +7,9 @@ use regex::Regex;
 use std::sync::{Arc, OnceLock};
 use tracing::{debug, warn};
 
+pub mod api;
 pub mod reader;
 pub mod track;
-pub mod api;
 
 pub use track::HttpTrack;
 

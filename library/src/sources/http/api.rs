@@ -1,7 +1,4 @@
-use crate::{
-    common::types::AnyResult,
-    protocol::tracks::TrackInfo,
-};
+use crate::{common::types::AnyResult, protocol::tracks::TrackInfo};
 use symphonia::core::{
     codecs::CODEC_TYPE_NULL,
     formats::FormatOptions,

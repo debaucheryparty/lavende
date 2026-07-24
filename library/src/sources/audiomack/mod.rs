@@ -5,15 +5,12 @@ use crate::{
 use async_trait::async_trait;
 use rand::{Rng, distributions::Alphanumeric, thread_rng};
 use serde_json::Value;
-use std::{
-    collections::BTreeMap,
-    sync::Arc,
-};
+use std::{collections::BTreeMap, sync::Arc};
 use tracing::{error, warn};
 
-pub mod utils;
 pub mod extractor;
 pub mod track;
+pub mod utils;
 
 const API_BASE: &str = "https://api.audiomack.com/v1";
 

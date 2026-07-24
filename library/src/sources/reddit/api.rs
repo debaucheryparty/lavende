@@ -35,14 +35,17 @@ pub async fn fetch_payload(client: &Arc<reqwest::Client>, url: &str) -> Option<V
         .ok()
 }
 
-pub async fn discover_audio_asset(client: &Arc<reqwest::Client>, primary_url: &str) -> Option<String> {
+pub async fn discover_audio_asset(
+    client: &Arc<reqwest::Client>,
+    primary_url: &str,
+) -> Option<String> {
     let anchor = primary_url.split('_').next()?;
-    let pool = vec!(
+    let pool = vec![
         format!("{}_audio.mp4", anchor),
         format!("{}_AUDIO_128.mp4", anchor),
         format!("{}_audio.mp3", anchor),
         primary_url.replace("DASH_", "DASH_audio"),
-    );
+    ];
     for probe_url in pool {
         let resp = client
             .head(&probe_url)

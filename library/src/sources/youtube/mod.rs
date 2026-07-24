@@ -1,11 +1,11 @@
+pub mod cipher;
+pub mod extractor;
+pub mod hls;
 pub mod identity;
 pub mod innertube;
 pub mod oauth;
-pub mod extractor;
-pub mod stream;
 pub mod playback;
-pub mod cipher;
-pub mod hls;
+pub mod stream;
 
 use crate::{
     common::types::SharedRw,
@@ -21,7 +21,7 @@ use tokio::sync::RwLock;
 use tracing::{debug, warn};
 
 use cipher::YouTubeCipherManager;
-use innertube::{ClientProfile, profiles, player_request, search_request, browse_playlist_request};
+use innertube::{ClientProfile, browse_playlist_request, player_request, profiles, search_request};
 use oauth::YouTubeOAuth;
 
 pub struct YouTubeSource {
@@ -85,9 +85,8 @@ impl YouTubeSource {
             }
         });
 
-        let create_client = |name: &str| -> Option<&'static ClientProfile> {
-            profiles::by_name(name)
-        };
+        let create_client =
+            |name: &str| -> Option<&'static ClientProfile> { profiles::by_name(name) };
 
         let mut search_clients = Vec::new();
         for name in &config.clients.search {
@@ -100,10 +99,7 @@ impl YouTubeSource {
             search_clients.push(&profiles::WEB);
         }
 
-        let search_client_names: Vec<&str> = search_clients
-            .iter()
-            .map(|c| c.label)
-            .collect();
+        let search_client_names: Vec<&str> = search_clients.iter().map(|c| c.label).collect();
         tracing::debug!(
             "YouTube Search Clients initialized: {:?}",
             search_client_names
@@ -131,10 +127,7 @@ impl YouTubeSource {
             resolve_clients.push(&profiles::WEB);
         }
 
-        let music_search_clients = vec![
-            &profiles::MUSIC_ANDROID,
-            &profiles::WEB_REMIX,
-        ];
+        let music_search_clients = vec![&profiles::MUSIC_ANDROID, &profiles::WEB_REMIX];
 
         tracing::info!(
             "YouTube source initialized with {} search, {} playback, and {} resolve clients.",
@@ -297,7 +290,9 @@ impl YouTubeSource {
         clients: &'a [&'static ClientProfile],
         prefer_music: bool,
     ) -> Vec<&'static ClientProfile> {
-        let is_music = |c: &&'static ClientProfile| c.client_name.contains("MUSIC") || c.client_name.contains("REMIX");
+        let is_music = |c: &&'static ClientProfile| {
+            c.client_name.contains("MUSIC") || c.client_name.contains("REMIX")
+        };
         let mut ordered = Vec::with_capacity(clients.len());
         if prefer_music {
             ordered.extend(clients.iter().filter(|c| is_music(c)).copied());
@@ -337,7 +332,9 @@ impl YouTubeSource {
         clients: &[&'static ClientProfile],
         prefer_music: bool,
     ) -> Vec<&'static ClientProfile> {
-        let is_music = |c: &&'static ClientProfile| c.client_name.contains("MUSIC") || c.client_name.contains("REMIX");
+        let is_music = |c: &&'static ClientProfile| {
+            c.client_name.contains("MUSIC") || c.client_name.contains("REMIX")
+        };
         let mut ordered = Vec::with_capacity(clients.len());
         if prefer_music {
             ordered.extend(clients.iter().filter(|c| is_music(c)).copied());
@@ -436,7 +433,9 @@ impl YouTubeSource {
     async fn handle_search(&self, identifier: &str, prefix: &str, context: &Value) -> LoadResult {
         let prefer_music = prefix == "ytmsearch:";
         let query = &identifier[prefix.len()..];
-        let is_music = |c: &&'static ClientProfile| c.client_name.contains("MUSIC") || c.client_name.contains("REMIX");
+        let is_music = |c: &&'static ClientProfile| {
+            c.client_name.contains("MUSIC") || c.client_name.contains("REMIX")
+        };
 
         let visitor_data = context.get("visitorData").and_then(|v| v.as_str());
 
@@ -450,7 +449,11 @@ impl YouTubeSource {
                 }
             }
 
-            for pool in [&self.search_clients[..], &self.resolve_clients[..], &self.playback_clients[..]] {
+            for pool in [
+                &self.search_clients[..],
+                &self.resolve_clients[..],
+                &self.playback_clients[..],
+            ] {
                 for c in pool {
                     if is_music(c) && seen.insert(c.label) {
                         music_clients.push(*c);
@@ -464,12 +467,19 @@ impl YouTubeSource {
                 }
                 tracing::debug!("Searching '{}' with {}", query, client.label);
                 let auth = self.oauth.get_auth_header().await;
+                let auth_header = if client.client_name.starts_with("TV") {
+                    auth.as_deref()
+                } else {
+                    None
+                };
                 let params = if client.client_name == "ANDROID_MUSIC" {
                     Some("EgWKAQIIAWoQEAMQBBAJEAoQBRAREBAQFQ%3D%3D")
                 } else {
                     Some("EgWKAQIIAWoQEAMQBBAFEBAQCRAKEBUQEQ%3D%3D")
                 };
-                match search_request(&self.http, client, query, params, visitor_data, auth.as_deref()).await {
+                match search_request(&self.http, client, query, params, visitor_data, auth_header)
+                    .await
+                {
                     Ok(body) => {
                         let tracks = extractor::extract_from_search(&body, "youtube");
                         if !tracks.is_empty() {
@@ -498,8 +508,14 @@ impl YouTubeSource {
             }
             tracing::debug!("Searching '{}' with {}", query, client.label);
             let auth = self.oauth.get_auth_header().await;
+            let auth_header = if client.client_name.starts_with("TV") {
+                auth.as_deref()
+            } else {
+                None
+            };
             let params = Some("EgIQAQ%3D%3D");
-            match search_request(&self.http, client, query, params, visitor_data, auth.as_deref()).await {
+            match search_request(&self.http, client, query, params, visitor_data, auth_header).await
+            {
                 Ok(body) => {
                     let tracks = extractor::extract_from_search(&body, "youtube");
                     if !tracks.is_empty() {
@@ -526,12 +542,18 @@ impl YouTubeSource {
             }
             tracing::debug!("Secondary search '{}' with {}", query, client.label);
             let auth = self.oauth.get_auth_header().await;
+            let auth_header = if client.client_name.starts_with("TV") {
+                auth.as_deref()
+            } else {
+                None
+            };
             let params = if client.client_name == "ANDROID_MUSIC" {
                 Some("EgWKAQIIAWoQEAMQBBAJEAoQBRAREBAQFQ%3D%3D")
             } else {
                 Some("EgWKAQIIAWoQEAMQBBAFEBAQCRAKEBUQEQ%3D%3D")
             };
-            match search_request(&self.http, client, query, params, visitor_data, auth.as_deref()).await {
+            match search_request(&self.http, client, query, params, visitor_data, auth_header).await
+            {
                 Ok(body) => {
                     let tracks = extractor::extract_from_search(&body, "youtube");
                     if !tracks.is_empty() {
@@ -560,7 +582,16 @@ impl YouTubeSource {
             tracing::debug!("Fallback search '{}' with {}", query, client.label);
             let auth = self.oauth.get_auth_header().await;
             let params = Some("EgIQAQ%3D%3D");
-            match search_request(&self.http, client, query, params, visitor_data, auth.as_deref()).await {
+            match search_request(
+                &self.http,
+                client,
+                query,
+                params,
+                visitor_data,
+                auth.as_deref(),
+            )
+            .await
+            {
                 Ok(body) => {
                     let tracks = extractor::extract_from_search(&body, "youtube");
                     if !tracks.is_empty() {
@@ -590,9 +621,23 @@ impl YouTubeSource {
                 continue;
             }
             let auth = self.oauth.get_auth_header().await;
-            match browse_playlist_request(&self.http, client, &playlist_id, visitor_data, auth.as_deref()).await {
+            let auth_header = if client.client_name.starts_with("TV") {
+                auth.as_deref()
+            } else {
+                None
+            };
+            match browse_playlist_request(
+                &self.http,
+                client,
+                &playlist_id,
+                visitor_data,
+                auth_header,
+            )
+            .await
+            {
                 Ok(body) => {
-                    if let Some((tracks, title)) = extractor::extract_from_browse(&body, "youtube") {
+                    if let Some((tracks, title)) = extractor::extract_from_browse(&body, "youtube")
+                    {
                         let filtered: Vec<Track> = tracks
                             .into_iter()
                             .filter(|t| t.info.identifier != seed_id)
@@ -623,12 +668,18 @@ impl YouTubeSource {
         if let Some(playlist_id) = self.extract_playlist_id(identifier) {
             let mut playlist_clients = Vec::new();
             for c in self.prioritize_clients(&self.resolve_clients, is_music_url) {
-                if !playlist_clients.iter().any(|x: &&'static ClientProfile| x.label == c.label) {
+                if !playlist_clients
+                    .iter()
+                    .any(|x: &&'static ClientProfile| x.label == c.label)
+                {
                     playlist_clients.push(c);
                 }
             }
             for c in self.fallback_clients(&playlist_clients, is_music_url) {
-                if !playlist_clients.iter().any(|x: &&'static ClientProfile| x.label == c.label) {
+                if !playlist_clients
+                    .iter()
+                    .any(|x: &&'static ClientProfile| x.label == c.label)
+                {
                     playlist_clients.push(c);
                 }
             }
@@ -639,9 +690,24 @@ impl YouTubeSource {
                 }
                 tracing::debug!("Fetching playlist '{}' with {}", playlist_id, client.label);
                 let auth = self.oauth.get_auth_header().await;
-                match browse_playlist_request(&self.http, client, &playlist_id, visitor_data, auth.as_deref()).await {
+                let auth_header = if client.client_name.starts_with("TV") {
+                    auth.as_deref()
+                } else {
+                    None
+                };
+                match browse_playlist_request(
+                    &self.http,
+                    client,
+                    &playlist_id,
+                    visitor_data,
+                    auth_header,
+                )
+                .await
+                {
                     Ok(body) => {
-                        if let Some((tracks, title)) = extractor::extract_from_browse(&body, "youtube") {
+                        if let Some((tracks, title)) =
+                            extractor::extract_from_browse(&body, "youtube")
+                        {
                             return LoadResult::Playlist(PlaylistData {
                                 info: PlaylistInfo {
                                     name: title,
@@ -671,13 +737,28 @@ impl YouTubeSource {
             }
             tracing::debug!("Resolving track '{}' with {}", id, client.label);
             let auth = self.oauth.get_auth_header().await;
+            let auth_header = if client.client_name.starts_with("TV") {
+                auth.as_deref()
+            } else {
+                None
+            };
             let sig_timestamp = self.cipher_manager.get_signature_timestamp().await.ok();
-            match player_request(&self.http, client, &id, visitor_data, sig_timestamp, auth.as_deref()).await {
+            match player_request(
+                &self.http,
+                client,
+                &id,
+                visitor_data,
+                sig_timestamp,
+                auth_header,
+            )
+            .await
+            {
                 Ok(body) => {
                     let body_val = serde_json::to_value(&body).unwrap_or(Value::Null);
                     if let Some(mut track) = extractor::extract_from_player(&body_val, "youtube") {
                         if is_music_url {
-                            track.info.uri = Some(format!("https://music.youtube.com/watch?v={}", id));
+                            track.info.uri =
+                                Some(format!("https://music.youtube.com/watch?v={}", id));
                         }
                         return LoadResult::Track(track);
                     }
@@ -701,8 +782,22 @@ impl YouTubeSource {
             }
             tracing::debug!("Fallback resolve '{}' with {}", id, client.label);
             let auth = self.oauth.get_auth_header().await;
+            let auth_header = if client.client_name.starts_with("TV") {
+                auth.as_deref()
+            } else {
+                None
+            };
             let sig_timestamp = self.cipher_manager.get_signature_timestamp().await.ok();
-            if let Ok(body) = player_request(&self.http, client, &id, visitor_data, sig_timestamp, auth.as_deref()).await {
+            if let Ok(body) = player_request(
+                &self.http,
+                client,
+                &id,
+                visitor_data,
+                sig_timestamp,
+                auth_header,
+            )
+            .await
+            {
                 let body_val = serde_json::to_value(&body).unwrap_or(Value::Null);
                 if let Some(mut track) = extractor::extract_from_player(&body_val, "youtube") {
                     if is_music_url {

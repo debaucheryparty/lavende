@@ -29,9 +29,8 @@ impl PlayableTrack for AmazonMusicTrack {
             "Amazon Music: opening streaming reader for {}",
             self.track_id
         );
-        let stream_client =
-            create_client(UA.to_owned(), self.local_addr, self.proxy.clone(), None)
-                .map_err(|e| format!("failed to create client: {e}"))?;
+        let stream_client = create_client(UA.to_owned(), self.local_addr, self.proxy.clone(), None)
+            .map_err(|e| format!("failed to create client: {e}"))?;
         let content_len = probe_content_length(&stream_client, &self.stream_url)
             .await
             .map_err(|e| format!("failed to probe stream length: {e}"))?;

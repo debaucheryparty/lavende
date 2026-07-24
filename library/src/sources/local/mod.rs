@@ -49,8 +49,7 @@ impl SourcePlugin for LocalSource {
             .to_owned();
         debug!("Local source probing file: {path}");
         let path_clone = path.clone();
-        let result =
-            tokio::task::spawn_blocking(move || api::probe_file(&path_clone)).await;
+        let result = tokio::task::spawn_blocking(move || api::probe_file(&path_clone)).await;
         match result {
             Ok(Ok(info)) => LoadResult::Track(Track::new(info)),
             Ok(Err(e)) => {

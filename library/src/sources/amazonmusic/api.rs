@@ -132,8 +132,7 @@ impl AmazonMusicClient {
     ) -> Option<Value> {
         let config = self.site_config().await?;
         let amzn_headers = Self::build_amzn_headers(&config, page_url);
-        body["headers"] =
-            Value::String(serde_json::to_string(&amzn_headers).unwrap_or_default());
+        body["headers"] = Value::String(serde_json::to_string(&amzn_headers).unwrap_or_default());
         let url = format!("{API_BASE}/{path}");
         let resp = match self
             .http

@@ -77,14 +77,18 @@ pub fn parse_track(dto: &JioSaavnTrackDto) -> Option<Track> {
         0
     };
 
-    let artwork_url = dto.image.as_ref()
+    let artwork_url = dto
+        .image
+        .as_ref()
         .filter(|s| !s.is_empty())
         .map(|s| s.replace("150x150", "500x500").replace("50x50", "500x500"));
 
     let mut artist_names = Vec::new();
     if let Some(more) = &dto.more_info {
         if let Some(artist_map) = &more.artist_map {
-            let primary = artist_map.primary_artists.as_ref()
+            let primary = artist_map
+                .primary_artists
+                .as_ref()
                 .or(artist_map.artists.as_ref());
             if let Some(arr) = primary {
                 for a in arr {
@@ -97,50 +101,81 @@ pub fn parse_track(dto: &JioSaavnTrackDto) -> Option<Track> {
     }
 
     let artists_str = if !artist_names.is_empty() {
-        artist_names.iter().take(3).cloned().collect::<Vec<_>>().join(", ")
+        artist_names
+            .iter()
+            .take(3)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join(", ")
     } else if let Some(more) = &dto.more_info {
-        let raw = more.primary_artists.as_ref()
+        let raw = more
+            .primary_artists
+            .as_ref()
             .or(more.singers.as_ref())
             .or(dto.subtitle.as_ref())
             .or(dto.header_desc.as_ref());
         match raw {
-            Some(s) => s.split(',').map(|part| part.trim()).take(3).collect::<Vec<_>>().join(", "),
+            Some(s) => s
+                .split(',')
+                .map(|part| part.trim())
+                .take(3)
+                .collect::<Vec<_>>()
+                .join(", "),
             None => "Unknown Artist".to_owned(),
         }
     } else {
         let raw = dto.subtitle.as_ref().or(dto.header_desc.as_ref());
         match raw {
-            Some(s) => s.split(',').map(|part| part.trim()).take(3).collect::<Vec<_>>().join(", "),
+            Some(s) => s
+                .split(',')
+                .map(|part| part.trim())
+                .take(3)
+                .collect::<Vec<_>>()
+                .join(", "),
             None => "Unknown Artist".to_owned(),
         }
     };
 
     let author = clean_string(&artists_str);
 
-    let album_name = dto.album.as_ref()
+    let album_name = dto
+        .album
+        .as_ref()
         .or_else(|| dto.more_info.as_ref().and_then(|m| m.album.as_ref()))
         .cloned();
 
-    let album_url = dto.album_url.as_ref()
+    let album_url = dto
+        .album_url
+        .as_ref()
         .or_else(|| dto.more_info.as_ref().and_then(|m| m.album_url.as_ref()))
         .cloned();
 
-    let primary_artist_url = dto.more_info.as_ref()
+    let primary_artist_url = dto
+        .more_info
+        .as_ref()
         .and_then(|m| m.artist_map.as_ref())
         .and_then(|am| am.primary_artists.as_ref())
         .and_then(|pa| pa.first())
         .and_then(|a| a.perma_url.clone());
 
-    let primary_artist_img = dto.more_info.as_ref()
+    let primary_artist_img = dto
+        .more_info
+        .as_ref()
         .and_then(|m| m.artist_map.as_ref())
         .and_then(|am| am.primary_artists.as_ref())
         .and_then(|pa| pa.first())
         .and_then(|a| a.image.clone())
         .map(|s| s.replace("150x150", "500x500").replace("50x50", "500x500"));
 
-    let preview_url = dto.media_preview_url.as_ref()
+    let preview_url = dto
+        .media_preview_url
+        .as_ref()
         .or(dto.vlink.as_ref())
-        .or_else(|| dto.more_info.as_ref().and_then(|m| m.media_preview_url.as_ref()))
+        .or_else(|| {
+            dto.more_info
+                .as_ref()
+                .and_then(|m| m.media_preview_url.as_ref())
+        })
         .or_else(|| dto.more_info.as_ref().and_then(|m| m.vlink.as_ref()))
         .cloned();
 

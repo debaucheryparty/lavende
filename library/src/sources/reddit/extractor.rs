@@ -5,8 +5,8 @@ use std::sync::{Arc, OnceLock};
 static PATH_EXTRACTOR: OnceLock<Regex> = OnceLock::new();
 
 pub fn identify_resource(link: &str) -> String {
-    let pattern = PATH_EXTRACTOR
-        .get_or_init(|| Regex::new(r"/(?:comments|video|s)/([^/?#]+)").unwrap());
+    let pattern =
+        PATH_EXTRACTOR.get_or_init(|| Regex::new(r"/(?:comments|video|s)/([^/?#]+)").unwrap());
     if let Some(hits) = pattern.captures(link) {
         return hits[1].to_owned();
     }

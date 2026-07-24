@@ -25,12 +25,9 @@ struct StreamApiResponse {
     decryption_key: String,
 }
 
-const TRACK_RE: &str =
-    r"(?i)^https?://(?:www\.)?music\.amazon\.[a-z.]+/tracks/([A-Z0-9]{10,20})";
-const ALBUM_RE: &str =
-    r"(?i)^https?://(?:www\.)?music\.amazon\.[a-z.]+/albums/([A-Z0-9]{10,20})";
-const ARTIST_RE: &str =
-    r"(?i)^https?://(?:www\.)?music\.amazon\.[a-z.]+/artists/([A-Z0-9]{10,20})";
+const TRACK_RE: &str = r"(?i)^https?://(?:www\.)?music\.amazon\.[a-z.]+/tracks/([A-Z0-9]{10,20})";
+const ALBUM_RE: &str = r"(?i)^https?://(?:www\.)?music\.amazon\.[a-z.]+/albums/([A-Z0-9]{10,20})";
+const ARTIST_RE: &str = r"(?i)^https?://(?:www\.)?music\.amazon\.[a-z.]+/artists/([A-Z0-9]{10,20})";
 const PLAYLIST_RE: &str =
     r"(?i)^https?://(?:www\.)?music\.amazon\.[a-z.]+/playlists/([A-Z0-9]{10,20})";
 const USER_PLAYLIST_RE: &str =
@@ -123,10 +120,11 @@ impl AmazonMusicSource {
             debug!("Amazon Music: album '{album_id}' not found");
             return LoadResult::Empty {};
         }
-        let (album_name, artist_name, track_infos) = match extractor::parse_album_tracks(&resp, &album_id) {
-            Some(r) => r,
-            None => return LoadResult::Empty {},
-        };
+        let (album_name, artist_name, track_infos) =
+            match extractor::parse_album_tracks(&resp, &album_id) {
+                Some(r) => r,
+                None => return LoadResult::Empty {},
+            };
         let artwork = resp["methods"][0]["template"]["headerImage"]
             .as_str()
             .filter(|s| !s.is_empty())
@@ -226,9 +224,8 @@ impl AmazonMusicSource {
                 if track_id.is_empty() {
                     continue;
                 }
-                let duration_ms = api::duration_str_to_ms(
-                    track["secondaryText3"].as_str().unwrap_or(""),
-                );
+                let duration_ms =
+                    api::duration_str_to_ms(track["secondaryText3"].as_str().unwrap_or(""));
                 duration_map.insert(format!("{album_id}:{track_id}"), duration_ms);
             }
         }
@@ -350,8 +347,7 @@ impl AmazonMusicSource {
             Some(i) => i.iter().take(self.search_limit).cloned().collect(),
             None => return LoadResult::Empty {},
         };
-        let mut unique_albums: std::collections::HashSet<String> =
-            std::collections::HashSet::new();
+        let mut unique_albums: std::collections::HashSet<String> = std::collections::HashSet::new();
         for item in &items {
             if let Some(key) = item["iconButton"]["observer"]["storageKey"].as_str() {
                 if let Some(album_id) = key.split(':').next() {
@@ -376,8 +372,7 @@ impl AmazonMusicSource {
                     None => continue,
                 };
                 let album_items =
-                    match album_resp["methods"][0]["template"]["widgets"][0]["items"].as_array()
-                    {
+                    match album_resp["methods"][0]["template"]["widgets"][0]["items"].as_array() {
                         Some(i) => i.clone(),
                         None => continue,
                     };
@@ -393,17 +388,17 @@ impl AmazonMusicSource {
                     if track_id.is_empty() {
                         continue;
                     }
-                    let duration_ms = api::duration_str_to_ms(
-                        track["secondaryText3"].as_str().unwrap_or(""),
-                    );
+                    let duration_ms =
+                        api::duration_str_to_ms(track["secondaryText3"].as_str().unwrap_or(""));
                     duration_map.insert(format!("{album_id}:{track_id}"), duration_ms);
                 }
             }
         }
-        let tracks: Vec<Track> = extractor::parse_search_tracks(&resp, self.search_limit, &duration_map)
-            .into_iter()
-            .map(Track::new)
-            .collect();
+        let tracks: Vec<Track> =
+            extractor::parse_search_tracks(&resp, self.search_limit, &duration_map)
+                .into_iter()
+                .map(Track::new)
+                .collect();
         if tracks.is_empty() {
             LoadResult::Empty {}
         } else {

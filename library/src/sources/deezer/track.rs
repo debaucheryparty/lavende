@@ -1,5 +1,5 @@
-use super::token::{DeezerTokens, DeezerTokenTracker};
 use super::reader::DeezerReader;
+use super::token::{DeezerTokenTracker, DeezerTokens};
 use crate::{
     common::types::AudioFormat,
     sources::playable_track::{PlayableTrack, ResolvedTrack},
@@ -33,7 +33,9 @@ impl PlayableTrack for DeezerTrack {
         let proxy = self.proxy.clone();
         const MAX_RETRIES: usize = 3;
         for attempt in 0..=MAX_RETRIES {
-            let resolved = match resolve_cdn_url(&self.client, &self.token_tracker, &self.track_id).await {
+            let resolved = match resolve_cdn_url(&self.client, &self.token_tracker, &self.track_id)
+                .await
+            {
                 Some(r) => r,
                 None => {
                     warn!(
@@ -47,15 +49,21 @@ impl PlayableTrack for DeezerTrack {
             };
             let cdn_url = resolved.cdn_url.clone();
             let effective_id = resolved.track_id.clone();
-            let reader_result = DeezerReader::new(&cdn_url, &effective_id, &master_key, local_addr, proxy.clone())
-                .await
-                .map(|r| {
-                    (
-                        Box::new(r) as Box<dyn symphonia::core::io::MediaSource>,
-                        cdn_url,
-                    )
-                })
-                .map_err(|e| e.to_string());
+            let reader_result = DeezerReader::new(
+                &cdn_url,
+                &effective_id,
+                &master_key,
+                local_addr,
+                proxy.clone(),
+            )
+            .await
+            .map(|r| {
+                (
+                    Box::new(r) as Box<dyn symphonia::core::io::MediaSource>,
+                    cdn_url,
+                )
+            })
+            .map_err(|e| e.to_string());
             let (reader, final_url) = match reader_result {
                 Ok(v) => v,
                 Err(e) => {
@@ -126,7 +134,11 @@ async fn resolve_cdn_url(
     let rights = results.get("RIGHTS");
     if is_rights_empty(rights) {
         if let Some(fallback) = results.get("FALLBACK") {
-            if !fallback.get("TRACK_TOKEN").map(|v| v.is_null()).unwrap_or(true) {
+            if !fallback
+                .get("TRACK_TOKEN")
+                .map(|v| v.is_null())
+                .unwrap_or(true)
+            {
                 let fallback_id = fallback.get("SNG_ID").and_then(|v| {
                     v.as_str()
                         .map(|s| s.to_owned())
@@ -270,7 +282,11 @@ pub(super) async fn verify_track_resolvable(
     let rights = results.get("RIGHTS");
     if is_rights_empty(rights) {
         if let Some(fallback) = results.get("FALLBACK") {
-            if !fallback.get("TRACK_TOKEN").map(|v| v.is_null()).unwrap_or(true) {
+            if !fallback
+                .get("TRACK_TOKEN")
+                .map(|v| v.is_null())
+                .unwrap_or(true)
+            {
                 let has_id = fallback.get("SNG_ID").and_then(|v| {
                     v.as_str()
                         .map(|s| s.to_owned())

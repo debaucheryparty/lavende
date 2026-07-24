@@ -9,9 +9,9 @@ use std::sync::{Arc, OnceLock};
 
 pub mod api;
 pub mod extractor;
+pub mod reader;
 pub mod recommendations;
 pub mod token;
-pub mod reader;
 pub mod track;
 
 const PUBLIC_API_BASE: &str = "https://api.deezer.com";
@@ -22,8 +22,10 @@ const REC_ARTIST_PREFIX: &str = "dzrec:artist:";
 fn url_regex() -> &'static Regex {
     static REGEX: OnceLock<Regex> = OnceLock::new();
     REGEX.get_or_init(|| {
-        Regex::new(r"https?://(?:www\.)?deezer\.com/(?:[a-z]{2}/)?(?:track|album|playlist|artist)/(\d+)")
-            .expect("deezer URL regex is a valid literal")
+        Regex::new(
+            r"https?://(?:www\.)?deezer\.com/(?:[a-z]{2}/)?(?:track|album|playlist|artist)/(\d+)",
+        )
+        .expect("deezer URL regex is a valid literal")
     })
 }
 
@@ -60,8 +62,8 @@ impl DeezerSource {
             let mut hasher = Sha256::new();
             hasher.update(key.as_bytes());
             const DECRYPTION_KEY_HASH: [u8; 32] = [
-                52, 76, 41, 138, 120, 133, 48, 72, 198, 74, 16, 75, 82, 101, 186, 223, 15, 190, 111, 218, 176,
-                71, 103, 11, 181, 136, 155, 247, 66, 203, 218, 240,
+                52, 76, 41, 138, 120, 133, 48, 72, 198, 74, 16, 75, 82, 101, 186, 223, 15, 190,
+                111, 218, 176, 71, 103, 11, 181, 136, 155, 247, 66, 203, 218, 240,
             ];
             if hasher.finalize().as_slice() != DECRYPTION_KEY_HASH {
                 tracing::warn!("Deezer master decryption key is invalid, playback may not work!");
@@ -121,14 +123,7 @@ impl DeezerSource {
 
     pub(crate) async fn get_json_public(&self, path: &str) -> Option<Value> {
         let url = format!("{PUBLIC_API_BASE}/{path}");
-        self.client
-            .get(&url)
-            .send()
-            .await
-            .ok()?
-            .json()
-            .await
-            .ok()
+        self.client.get(&url).send().await.ok()?.json().await.ok()
     }
 
     pub(crate) fn parse_track(&self, json: &Value) -> Option<Track> {
@@ -352,9 +347,13 @@ impl SourcePlugin for DeezerSource {
     ) -> LoadResult {
         if identifier.starts_with(REC_TRACK_PREFIX) || identifier.starts_with(REC_ARTIST_PREFIX) {
             let query = if identifier.starts_with(REC_TRACK_PREFIX) {
-                identifier.strip_prefix(REC_TRACK_PREFIX).unwrap_or(identifier)
+                identifier
+                    .strip_prefix(REC_TRACK_PREFIX)
+                    .unwrap_or(identifier)
             } else {
-                identifier.strip_prefix(REC_ARTIST_PREFIX).unwrap_or(identifier)
+                identifier
+                    .strip_prefix(REC_ARTIST_PREFIX)
+                    .unwrap_or(identifier)
             };
             return recommendations::get_recommendations(self, query).await;
         }
@@ -365,7 +364,10 @@ impl SourcePlugin for DeezerSource {
             }
         }
 
-        if let Some(prefix) = vec!["dzisrc:"].into_iter().find(|p| identifier.starts_with(p)) {
+        if let Some(prefix) = vec!["dzisrc:"]
+            .into_iter()
+            .find(|p| identifier.starts_with(p))
+        {
             if let Some(isrc) = identifier.strip_prefix(prefix) {
                 if let Some(track) = self.get_track_by_isrc(isrc).await {
                     return LoadResult::Track(track);
@@ -446,5 +448,4 @@ impl SourcePlugin for DeezerSource {
         }
         self.get_autocomplete(q, types).await
     }
-
 }

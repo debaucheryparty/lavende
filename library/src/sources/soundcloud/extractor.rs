@@ -114,10 +114,17 @@ pub fn parse_track(dto: &TrackDto) -> Result<Track, String> {
         _ => return Err("Invalid ID type".to_owned()),
     };
     let title = dto.title.as_deref().unwrap_or("Unknown").to_owned();
-    let author = dto.user.as_ref().and_then(|u| u.username.clone()).unwrap_or_else(|| "Unknown".to_owned());
+    let author = dto
+        .user
+        .as_ref()
+        .and_then(|u| u.username.clone())
+        .unwrap_or_else(|| "Unknown".to_owned());
     let duration = dto.full_duration.or(dto.duration).unwrap_or(0);
     let uri = dto.permalink_url.clone();
-    let artwork_url = dto.artwork_url.as_ref().map(|s| s.replace("-large", "-t500x500"));
+    let artwork_url = dto
+        .artwork_url
+        .as_ref()
+        .map(|s| s.replace("-large", "-t500x500"));
     let isrc = dto.publisher_metadata.as_ref().and_then(|m| m.isrc.clone());
 
     Ok(Track::new(TrackInfo {
@@ -140,21 +147,24 @@ pub fn select_format(transcodings: &[TranscodingDto]) -> Option<(SoundCloudStrea
         return None;
     }
     let find_transcoding = |protocol: &str, mime_contains: &str| -> Option<TranscodingDto> {
-        transcodings.iter().find(|t| {
-            let fmt = match &t.format {
-                Some(f) => f,
-                None => return false,
-            };
-            let proto = fmt.protocol.as_deref().unwrap_or("");
-            let mime = fmt.mime_type.as_deref().unwrap_or("");
-            let snipped = t.snipped.unwrap_or(false);
-            let url = t.url.as_deref().unwrap_or("");
-            !snipped
-                && !url.contains("/preview/")
-                && !url.contains("cf-preview-media.sndcdn.com")
-                && proto == protocol
-                && mime.contains(mime_contains)
-        }).cloned()
+        transcodings
+            .iter()
+            .find(|t| {
+                let fmt = match &t.format {
+                    Some(f) => f,
+                    None => return false,
+                };
+                let proto = fmt.protocol.as_deref().unwrap_or("");
+                let mime = fmt.mime_type.as_deref().unwrap_or("");
+                let snipped = t.snipped.unwrap_or(false);
+                let url = t.url.as_deref().unwrap_or("");
+                !snipped
+                    && !url.contains("/preview/")
+                    && !url.contains("cf-preview-media.sndcdn.com")
+                    && proto == protocol
+                    && mime.contains(mime_contains)
+            })
+            .cloned()
     };
 
     let selected = find_transcoding("progressive", "mpeg")
@@ -165,20 +175,32 @@ pub fn select_format(transcodings: &[TranscodingDto]) -> Option<(SoundCloudStrea
         .or_else(|| find_transcoding("hls", "m4a"))
         .or_else(|| find_transcoding("hls", "ogg"))
         .or_else(|| {
-            transcodings.iter().find(|t| {
-                t.format.as_ref().and_then(|f| f.protocol.as_deref()) == Some("progressive")
-            }).cloned()
+            transcodings
+                .iter()
+                .find(|t| {
+                    t.format.as_ref().and_then(|f| f.protocol.as_deref()) == Some("progressive")
+                })
+                .cloned()
         })
         .or_else(|| {
-            transcodings.iter().find(|t| {
-                t.format.as_ref().and_then(|f| f.protocol.as_deref()) == Some("hls")
-            }).cloned()
+            transcodings
+                .iter()
+                .find(|t| t.format.as_ref().and_then(|f| f.protocol.as_deref()) == Some("hls"))
+                .cloned()
         })
         .or_else(|| transcodings.first().cloned())?;
 
     let lookup_url = selected.url?;
-    let proto = selected.format.as_ref().and_then(|f| f.protocol.as_deref()).unwrap_or("");
-    let mime = selected.format.as_ref().and_then(|f| f.mime_type.as_deref()).unwrap_or("");
+    let proto = selected
+        .format
+        .as_ref()
+        .and_then(|f| f.protocol.as_deref())
+        .unwrap_or("");
+    let mime = selected
+        .format
+        .as_ref()
+        .and_then(|f| f.mime_type.as_deref())
+        .unwrap_or("");
 
     let kind = if proto == "progressive" {
         if mime.contains("aac") {

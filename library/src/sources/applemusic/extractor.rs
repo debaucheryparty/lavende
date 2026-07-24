@@ -1,10 +1,7 @@
 use crate::protocol::tracks::{PlaylistData, PlaylistInfo, Track, TrackInfo};
 use serde_json::{Value, json};
 
-pub fn build_track(
-    item: &Value,
-    artwork_override: Option<String>,
-) -> Option<Track> {
+pub fn build_track(item: &Value, artwork_override: Option<String>) -> Option<Track> {
     let attributes = item.get("attributes")?;
     let id = item.get("id")?.as_str()?.to_owned();
     let title = attributes

@@ -127,7 +127,9 @@ impl LyricsProvider for YoutubeMusicLyricsProvider {
                 {
                     for section in contents {
                         if let Some(music_shelf) = section.get("musicShelfRenderer") {
-                            if let Some(music_contents) = music_shelf.get("contents").and_then(|v| v.as_array()) {
+                            if let Some(music_contents) =
+                                music_shelf.get("contents").and_then(|v| v.as_array())
+                            {
                                 if !music_contents.is_empty() {
                                     let first_item = &music_contents[0];
                                     if let Some(vid) = first_item

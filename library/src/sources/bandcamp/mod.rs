@@ -237,7 +237,7 @@ impl SourcePlugin for BandcampSource {
             )
         } else {
             return None;
-        } ;
+        };
         let (_, stream_url_opt) = api::fetch_track_data(&self.client, &url).await?;
         let stream_url = stream_url_opt?;
         Some(Arc::new(track::BandcampTrack {

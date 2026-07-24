@@ -100,11 +100,7 @@ pub fn parse_moof_external(moof: &[u8]) -> (Vec<SampleEntry>, u8) {
     parse_moof(moof)
 }
 
-pub fn extract_sample_ivs_external(
-    moof: &[u8],
-    iv_size_hint: u8,
-    count: usize,
-) -> Vec<Vec<u8>> {
+pub fn extract_sample_ivs_external(moof: &[u8], iv_size_hint: u8, count: usize) -> Vec<Vec<u8>> {
     extract_sample_ivs(moof, iv_size_hint, count)
 }
 
@@ -156,8 +152,7 @@ fn locate_fragments(buf: &[u8]) -> Result<Vec<FragmentInfo>, String> {
                 continue;
             }
             let (samples, per_sample_iv_size) = parse_moof(&buf[pos..moof_end]);
-            let ivs =
-                extract_sample_ivs(&buf[pos..moof_end], per_sample_iv_size, samples.len());
+            let ivs = extract_sample_ivs(&buf[pos..moof_end], per_sample_iv_size, samples.len());
             frags.push(FragmentInfo {
                 mdat_offset,
                 mdat_size: mdat_size_raw,
@@ -178,8 +173,8 @@ fn parse_moof(moof: &[u8]) -> (Vec<SampleEntry>, u8) {
     let mut per_sample_iv_size: u8 = 0;
     let mut pos = 8;
     while pos + 8 <= moof.len() {
-        let sz = u32::from_be_bytes([moof[pos], moof[pos + 1], moof[pos + 2], moof[pos + 3]])
-            as usize;
+        let sz =
+            u32::from_be_bytes([moof[pos], moof[pos + 1], moof[pos + 2], moof[pos + 3]]) as usize;
         let typ = &moof[pos + 4..pos + 8];
         if sz < 8 || pos + sz > moof.len() {
             break;
@@ -214,8 +209,8 @@ fn parse_traf(traf: &[u8]) -> (Vec<SampleEntry>, u32, u8) {
     let mut per_sample_iv_size: u8 = 0;
     let mut pos = 8;
     while pos + 8 <= traf.len() {
-        let sz = u32::from_be_bytes([traf[pos], traf[pos + 1], traf[pos + 2], traf[pos + 3]])
-            as usize;
+        let sz =
+            u32::from_be_bytes([traf[pos], traf[pos + 1], traf[pos + 2], traf[pos + 3]]) as usize;
         let typ = &traf[pos + 4..pos + 8];
         if sz < 8 || pos + sz > traf.len() {
             break;
@@ -292,8 +287,7 @@ fn parse_trun(trun: &[u8]) -> Vec<SampleEntry> {
             off += 4;
         }
         let size = if has_size && off + 4 <= trun.len() {
-            let s =
-                u32::from_be_bytes([trun[off], trun[off + 1], trun[off + 2], trun[off + 3]]);
+            let s = u32::from_be_bytes([trun[off], trun[off + 1], trun[off + 2], trun[off + 3]]);
             off += 4;
             s as usize
         } else {
@@ -370,8 +364,8 @@ fn detect_iv_size_from_senc(traf: &[u8], sample_count: usize) -> u8 {
     }
     let mut pos = 8;
     while pos + 8 <= traf.len() {
-        let sz = u32::from_be_bytes([traf[pos], traf[pos + 1], traf[pos + 2], traf[pos + 3]])
-            as usize;
+        let sz =
+            u32::from_be_bytes([traf[pos], traf[pos + 1], traf[pos + 2], traf[pos + 3]]) as usize;
         let typ = &traf[pos + 4..pos + 8];
         if sz < 8 || pos + sz > traf.len() {
             break;
@@ -395,8 +389,8 @@ fn detect_iv_size_from_senc(traf: &[u8], sample_count: usize) -> u8 {
 fn extract_sample_ivs(moof: &[u8], iv_size_hint: u8, sample_count: usize) -> Vec<Vec<u8>> {
     let mut pos = 8;
     while pos + 8 <= moof.len() {
-        let sz = u32::from_be_bytes([moof[pos], moof[pos + 1], moof[pos + 2], moof[pos + 3]])
-            as usize;
+        let sz =
+            u32::from_be_bytes([moof[pos], moof[pos + 1], moof[pos + 2], moof[pos + 3]]) as usize;
         let typ = &moof[pos + 4..pos + 8];
         if sz < 8 || pos + sz > moof.len() {
             break;
@@ -412,8 +406,8 @@ fn extract_sample_ivs(moof: &[u8], iv_size_hint: u8, sample_count: usize) -> Vec
 fn extract_senc_ivs(traf: &[u8], iv_size_hint: u8, _sample_count: usize) -> Vec<Vec<u8>> {
     let mut pos = 8;
     while pos + 8 <= traf.len() {
-        let sz = u32::from_be_bytes([traf[pos], traf[pos + 1], traf[pos + 2], traf[pos + 3]])
-            as usize;
+        let sz =
+            u32::from_be_bytes([traf[pos], traf[pos + 1], traf[pos + 2], traf[pos + 3]]) as usize;
         let typ = &traf[pos + 4..pos + 8];
         if sz < 8 || pos + sz > traf.len() {
             break;
@@ -448,8 +442,8 @@ pub fn patch_moov_headers(buf: &mut [u8]) -> Result<(), String> {
 fn patch_moov_box(moov: &mut [u8]) {
     let mut pos = 8;
     while pos + 8 <= moov.len() {
-        let sz = u32::from_be_bytes([moov[pos], moov[pos + 1], moov[pos + 2], moov[pos + 3]])
-            as usize;
+        let sz =
+            u32::from_be_bytes([moov[pos], moov[pos + 1], moov[pos + 2], moov[pos + 3]]) as usize;
         if sz < 8 || pos + sz > moov.len() {
             break;
         }
@@ -464,8 +458,8 @@ fn patch_moov_box(moov: &mut [u8]) {
 fn patch_trak(trak: &mut [u8]) {
     let mut pos = 8;
     while pos + 8 <= trak.len() {
-        let sz = u32::from_be_bytes([trak[pos], trak[pos + 1], trak[pos + 2], trak[pos + 3]])
-            as usize;
+        let sz =
+            u32::from_be_bytes([trak[pos], trak[pos + 1], trak[pos + 2], trak[pos + 3]]) as usize;
         if sz < 8 || pos + sz > trak.len() {
             break;
         }
@@ -480,8 +474,8 @@ fn patch_trak(trak: &mut [u8]) {
 fn patch_mdia(mdia: &mut [u8]) {
     let mut pos = 8;
     while pos + 8 <= mdia.len() {
-        let sz = u32::from_be_bytes([mdia[pos], mdia[pos + 1], mdia[pos + 2], mdia[pos + 3]])
-            as usize;
+        let sz =
+            u32::from_be_bytes([mdia[pos], mdia[pos + 1], mdia[pos + 2], mdia[pos + 3]]) as usize;
         if sz < 8 || pos + sz > mdia.len() {
             break;
         }
@@ -496,8 +490,8 @@ fn patch_mdia(mdia: &mut [u8]) {
 fn patch_minf(minf: &mut [u8]) {
     let mut pos = 8;
     while pos + 8 <= minf.len() {
-        let sz = u32::from_be_bytes([minf[pos], minf[pos + 1], minf[pos + 2], minf[pos + 3]])
-            as usize;
+        let sz =
+            u32::from_be_bytes([minf[pos], minf[pos + 1], minf[pos + 2], minf[pos + 3]]) as usize;
         if sz < 8 || pos + sz > minf.len() {
             break;
         }
@@ -512,8 +506,8 @@ fn patch_minf(minf: &mut [u8]) {
 fn patch_stbl(stbl: &mut [u8]) {
     let mut pos = 8;
     while pos + 8 <= stbl.len() {
-        let sz = u32::from_be_bytes([stbl[pos], stbl[pos + 1], stbl[pos + 2], stbl[pos + 3]])
-            as usize;
+        let sz =
+            u32::from_be_bytes([stbl[pos], stbl[pos + 1], stbl[pos + 2], stbl[pos + 3]]) as usize;
         if sz < 8 || pos + sz > stbl.len() {
             break;
         }
@@ -570,9 +564,8 @@ fn patch_stsd(stsd: &mut [u8]) {
 fn find_original_codec(entry: &[u8]) -> Option<[u8; 4]> {
     let mut pos = 36;
     while pos + 8 <= entry.len() {
-        let sz =
-            u32::from_be_bytes([entry[pos], entry[pos + 1], entry[pos + 2], entry[pos + 3]])
-                as usize;
+        let sz = u32::from_be_bytes([entry[pos], entry[pos + 1], entry[pos + 2], entry[pos + 3]])
+            as usize;
         let typ = &entry[pos + 4..pos + 8];
         if sz < 8 || pos + sz > entry.len() {
             break;
@@ -588,8 +581,8 @@ fn find_original_codec(entry: &[u8]) -> Option<[u8; 4]> {
 fn find_frma(sinf: &[u8]) -> Option<[u8; 4]> {
     let mut pos = 8;
     while pos + 8 <= sinf.len() {
-        let sz = u32::from_be_bytes([sinf[pos], sinf[pos + 1], sinf[pos + 2], sinf[pos + 3]])
-            as usize;
+        let sz =
+            u32::from_be_bytes([sinf[pos], sinf[pos + 1], sinf[pos + 2], sinf[pos + 3]]) as usize;
         let typ = &sinf[pos + 4..sinf.len().min(pos + 8)];
         if sz < 8 || pos + sz > sinf.len() {
             break;
@@ -605,9 +598,8 @@ fn find_frma(sinf: &[u8]) -> Option<[u8; 4]> {
 fn neutralize_sinf(entry: &mut [u8]) {
     let mut pos = 36;
     while pos + 8 <= entry.len() {
-        let sz =
-            u32::from_be_bytes([entry[pos], entry[pos + 1], entry[pos + 2], entry[pos + 3]])
-                as usize;
+        let sz = u32::from_be_bytes([entry[pos], entry[pos + 1], entry[pos + 2], entry[pos + 3]])
+            as usize;
         if sz < 8 || pos + sz > entry.len() {
             break;
         }
@@ -719,8 +711,8 @@ fn find_child<'a>(parent: &'a [u8], target: &[u8; 4]) -> Option<&'a [u8]> {
 fn find_box_in<'a>(data: &'a [u8], target: &[u8; 4]) -> Option<&'a [u8]> {
     let mut pos = 0;
     while pos + 8 <= data.len() {
-        let sz = u32::from_be_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]])
-            as usize;
+        let sz =
+            u32::from_be_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]]) as usize;
         if sz < 8 || pos + sz > data.len() {
             break;
         }

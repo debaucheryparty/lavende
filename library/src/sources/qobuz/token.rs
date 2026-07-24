@@ -171,8 +171,8 @@ impl QobuzTokenTracker {
         let decoded = general_purpose::STANDARD
             .decode(encoded)
             .map_err(|e| format!("Failed to decode appSecret: {e}"))?;
-        let app_secret = String::from_utf8(decoded)
-            .map_err(|e| format!("Invalid UTF-8 in appSecret: {e}"))?;
+        let app_secret =
+            String::from_utf8(decoded).map_err(|e| format!("Invalid UTF-8 in appSecret: {e}"))?;
         Ok((app_id, app_secret))
     }
 

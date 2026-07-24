@@ -4,8 +4,7 @@ use crate::{
     sources::{
         playable_track::{PlayableTrack, ResolvedTrack},
         youtube::hls::{
-            fetcher::fetch_segment_into, ts_demux::extract_adts_from_ts,
-            resolver::fetch_text,
+            fetcher::fetch_segment_into, resolver::fetch_text, ts_demux::extract_adts_from_ts,
         },
     },
 };
@@ -100,7 +99,8 @@ impl LiveHlsReader {
                         continue;
                     }
                 };
-                let (segments, target_duration) = super::extractor::parse_live_playlist(&text, &manifest_url);
+                let (segments, target_duration) =
+                    super::extractor::parse_live_playlist(&text, &manifest_url);
                 for seg in segments {
                     if seen.contains(&seg.url) {
                         continue;

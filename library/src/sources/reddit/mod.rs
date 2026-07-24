@@ -50,7 +50,8 @@ impl SourcePlugin for RedditSource {
         identifier: &str,
         routeplanner: Option<Arc<dyn crate::routeplanner::RoutePlanner>>,
     ) -> Option<BoxedTrack> {
-        let (meta, audio_stream) = extractor::acquire_metadata_packet(&self.http, identifier).await?;
+        let (meta, audio_stream) =
+            extractor::acquire_metadata_packet(&self.http, identifier).await?;
         Some(Arc::new(RedditTrack {
             client: self.http.clone(),
             uri: meta.uri.unwrap_or_else(|| identifier.to_owned()),

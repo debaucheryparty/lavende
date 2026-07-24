@@ -1,14 +1,12 @@
 use crate::protocol::tracks::TrackInfo;
 use serde_json::Value;
 
-pub fn parse_track_inner(
-    track_val: &Value,
-    artwork_url: Option<String>,
-) -> Option<TrackInfo> {
+pub fn parse_track_inner(track_val: &Value, artwork_url: Option<String>) -> Option<TrackInfo> {
     let track = if track_val.get("uri").is_some() {
         track_val
     } else {
-        track_val.get("track")
+        track_val
+            .get("track")
             .or_else(|| track_val.get("item"))
             .or_else(|| track_val.get("data"))?
     };

@@ -74,8 +74,7 @@ impl VkMusicSource {
             .await;
         match resp.as_ref().and_then(|r| r["items"].as_array()) {
             Some(items) if !items.is_empty() => {
-                let tracks: Vec<Track> =
-                    items.iter().filter_map(|i| self.build_track(i)).collect();
+                let tracks: Vec<Track> = items.iter().filter_map(|i| self.build_track(i)).collect();
                 if tracks.is_empty() {
                     LoadResult::Empty {}
                 } else {
@@ -115,12 +114,7 @@ impl VkMusicSource {
         })
     }
 
-    async fn load_playlist(
-        &self,
-        owner: &str,
-        id: &str,
-        access_key: Option<&str>,
-    ) -> LoadResult {
+    async fn load_playlist(&self, owner: &str, id: &str, access_key: Option<&str>) -> LoadResult {
         let mut params = vec![
             ("owner_id", owner.to_string()),
             ("album_id", id.to_string()),

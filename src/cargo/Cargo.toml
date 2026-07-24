@@ -1,6 +1,6 @@
 [package]
 name = "lavende"
-version = "1.0.9"
+version.workspace = true
 edition = "2024"
 description = "In-process Discord voice connection and playback engine"
 readme = "../../README.md"

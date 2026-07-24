@@ -399,9 +399,13 @@ pub fn extract_track(item: &Value, source_name: &str) -> Option<Track> {
                     for run in runs {
                         if let Some(text) = run.get("text").and_then(|t| t.as_str()) {
                             let text = text.trim();
-                            if text.contains(':') && text.chars().all(|c| c.is_ascii_digit() || c == ':') {
+                            if text.contains(':')
+                                && text.chars().all(|c| c.is_ascii_digit() || c == ':')
+                            {
                                 let dur = parse_duration(text);
-                                if dur > 0 { return Some(dur); }
+                                if dur > 0 {
+                                    return Some(dur);
+                                }
                             }
                         }
                     }
@@ -438,7 +442,11 @@ pub fn extract_track(item: &Value, source_name: &str) -> Option<Track> {
                     }
                 }
 
-                if let Some(runs) = renderer.get("subtitle").and_then(|s| s.get("runs")).and_then(|r| r.as_array()) {
+                if let Some(runs) = renderer
+                    .get("subtitle")
+                    .and_then(|s| s.get("runs"))
+                    .and_then(|r| r.as_array())
+                {
                     if let Some(dur) = check_runs(runs) {
                         return Some(dur);
                     }
@@ -599,7 +607,10 @@ fn find_music_search_shelf(content: &Value) -> Option<&Vec<Value>> {
 pub fn extract_from_search(body: &Value, source_name: &str) -> Vec<Track> {
     let mut tracks = Vec::new();
 
-    if let Some(tabbed) = body.get("contents").and_then(|c| c.get("tabbedSearchResultsRenderer")) {
+    if let Some(tabbed) = body
+        .get("contents")
+        .and_then(|c| c.get("tabbedSearchResultsRenderer"))
+    {
         let tab_content = tabbed
             .get("tabs")
             .and_then(|t| t.get(0))

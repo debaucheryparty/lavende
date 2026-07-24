@@ -1,7 +1,7 @@
-pub mod token;
+pub mod api;
 pub mod extractor;
 pub mod stream;
-pub mod api;
+pub mod token;
 
 use crate::{
     protocol::tracks::{LoadResult, PlaylistData, PlaylistInfo, Track},
@@ -11,9 +11,12 @@ use async_trait::async_trait;
 use regex::Regex;
 use std::sync::{Arc, OnceLock};
 
+use extractor::{
+    LikedResponseDto, PlaylistDto, SoundCloudStreamKind, TrackDto, UserResponseDto, parse_track,
+    select_format,
+};
+use stream::{SoundCloudHlsReader, SoundCloudReader};
 use token::SoundCloudTokenTracker;
-use extractor::{SoundCloudStreamKind, TrackDto, PlaylistDto, LikedResponseDto, UserResponseDto, select_format, parse_track};
-use stream::{SoundCloudReader, SoundCloudHlsReader};
 
 fn track_url_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
@@ -32,10 +35,8 @@ fn playlist_url_re() -> &'static Regex {
 fn liked_url_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
-        Regex::new(
-            r"^https?://(?:www\.|m\.)?soundcloud\.com/([a-zA-Z0-9_-]+)/likes/?(?:\?.*)?$",
-        )
-        .unwrap()
+        Regex::new(r"^https?://(?:www\.|m\.)?soundcloud\.com/([a-zA-Z0-9_-]+)/likes/?(?:\?.*)?$")
+            .unwrap()
     })
 }
 
@@ -55,9 +56,7 @@ fn mobile_url_re() -> &'static Regex {
 
 fn liked_user_urn_re() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        Regex::new(r#""urn":"soundcloud:users:(\d+)","username":"([^"]+)""#).unwrap()
-    })
+    RE.get_or_init(|| Regex::new(r#""urn":"soundcloud:users:(\d+)","username":"([^"]+)""#).unwrap())
 }
 
 fn user_url_re() -> &'static Regex {
@@ -105,28 +104,46 @@ impl crate::sources::playable_track::PlayableTrack for SoundCloudTrack {
                 crate::common::types::AudioFormat::Mp4,
             ),
             SoundCloudStreamKind::HlsOpus => (
-                SoundCloudHlsReader::new(&self.stream_url, self.bitrate_bps, self.local_addr, self.proxy.clone())
-                    .await
-                    .map(|r| Box::new(r) as Box<dyn symphonia::core::io::MediaSource>)
-                    .map_err(|e| format!("Failed to init HLS reader: {e}"))?,
+                SoundCloudHlsReader::new(
+                    &self.stream_url,
+                    self.bitrate_bps,
+                    self.local_addr,
+                    self.proxy.clone(),
+                )
+                .await
+                .map(|r| Box::new(r) as Box<dyn symphonia::core::io::MediaSource>)
+                .map_err(|e| format!("Failed to init HLS reader: {e}"))?,
                 crate::common::types::AudioFormat::Opus,
             ),
             SoundCloudStreamKind::HlsMp3 => (
-                SoundCloudHlsReader::new(&self.stream_url, self.bitrate_bps, self.local_addr, self.proxy.clone())
-                    .await
-                    .map(|r| Box::new(r) as Box<dyn symphonia::core::io::MediaSource>)
-                    .map_err(|e| format!("Failed to init HLS reader: {e}"))?,
+                SoundCloudHlsReader::new(
+                    &self.stream_url,
+                    self.bitrate_bps,
+                    self.local_addr,
+                    self.proxy.clone(),
+                )
+                .await
+                .map(|r| Box::new(r) as Box<dyn symphonia::core::io::MediaSource>)
+                .map_err(|e| format!("Failed to init HLS reader: {e}"))?,
                 crate::common::types::AudioFormat::Mp3,
             ),
             SoundCloudStreamKind::HlsAac => (
-                SoundCloudHlsReader::new(&self.stream_url, self.bitrate_bps, self.local_addr, self.proxy.clone())
-                    .await
-                    .map(|r| Box::new(r) as Box<dyn symphonia::core::io::MediaSource>)
-                    .map_err(|e| format!("Failed to init HLS reader: {e}"))?,
+                SoundCloudHlsReader::new(
+                    &self.stream_url,
+                    self.bitrate_bps,
+                    self.local_addr,
+                    self.proxy.clone(),
+                )
+                .await
+                .map(|r| Box::new(r) as Box<dyn symphonia::core::io::MediaSource>)
+                .map_err(|e| format!("Failed to init HLS reader: {e}"))?,
                 crate::common::types::AudioFormat::Aac,
             ),
         };
-        Ok(crate::sources::playable_track::ResolvedTrack::new(reader, Some(hint)))
+        Ok(crate::sources::playable_track::ResolvedTrack::new(
+            reader,
+            Some(hint),
+        ))
     }
 }
 
@@ -169,19 +186,25 @@ impl SoundCloudSource {
     ) -> Option<BoxedTrack> {
         let json = api::api_resolve(&self.client, url, client_id).await.ok()?;
         let track_dto: TrackDto = serde_json::from_value(json).ok()?;
-        
-        let transcodings = track_dto.media.as_ref().and_then(|m| m.transcodings.clone()).unwrap_or_default();
+
+        let transcodings = track_dto
+            .media
+            .as_ref()
+            .and_then(|m| m.transcodings.clone())
+            .unwrap_or_default();
         if transcodings.is_empty() {
             return None;
         }
-        
+
         let (kind, lookup_url) = select_format(&transcodings)?;
-        let stream_url = api::resolve_stream_url(&self.client, &lookup_url, client_id).await.ok()?;
-        
+        let stream_url = api::resolve_stream_url(&self.client, &lookup_url, client_id)
+            .await
+            .ok()?;
+
         if stream_url.contains("cf-preview-media.sndcdn.com") || stream_url.contains("/preview/") {
             return None;
         }
-        
+
         Some(Arc::new(SoundCloudTrack {
             stream_url,
             kind,
@@ -197,7 +220,7 @@ impl SoundCloudSource {
             None => return LoadResult::Empty {},
         };
         let limit = self.config.search_limit;
-        
+
         match api::search_tracks_api(&self.client, query, &client_id, limit).await {
             Ok(json) => {
                 let response: extractor::SearchResponseDto = match serde_json::from_value(json) {
@@ -210,7 +233,7 @@ impl SoundCloudSource {
                     .iter()
                     .filter_map(|item| parse_track(item).ok())
                     .collect();
-                
+
                 if tracks.is_empty() {
                     LoadResult::Empty {}
                 } else {
@@ -234,7 +257,7 @@ impl SoundCloudSource {
             Ok(t) => t,
             Err(_) => return LoadResult::Empty {},
         };
-        
+
         match parse_track(&track_dto) {
             Ok(track) => LoadResult::Track(track),
             Err(_) => LoadResult::Empty {},
@@ -257,7 +280,10 @@ impl SoundCloudSource {
         if playlist_dto.kind.as_deref() != Some("playlist") {
             return LoadResult::Empty {};
         }
-        let name = playlist_dto.title.clone().unwrap_or_else(|| "Untitled playlist".to_owned());
+        let name = playlist_dto
+            .title
+            .clone()
+            .unwrap_or_else(|| "Untitled playlist".to_owned());
         let raw_tracks = playlist_dto.tracks.clone().unwrap_or_default();
         let mut complete: Vec<Track> = Vec::new();
         let mut stub_ids: Vec<String> = Vec::new();
@@ -267,7 +293,12 @@ impl SoundCloudSource {
                     if let Ok(track) = parse_track(&track_dto) {
                         complete.push(track);
                     }
-                } else if let Some(id) = track_dto.id.as_str().map(|s| s.to_owned()).or_else(|| track_dto.id.as_i64().map(|n| n.to_string())) {
+                } else if let Some(id) = track_dto
+                    .id
+                    .as_str()
+                    .map(|s| s.to_owned())
+                    .or_else(|| track_dto.id.as_i64().map(|n| n.to_string()))
+                {
                     stub_ids.push(id);
                 }
             }
@@ -374,7 +405,7 @@ impl SoundCloudSource {
         };
         let username = caps.get(1).map(|m| m.as_str()).unwrap_or("");
         let sub_path = caps.get(2).map(|m| m.as_str()).unwrap_or("");
-        
+
         let clean_url = format!("https://soundcloud.com/{username}");
         let json = match api::api_resolve(&self.client, &clean_url, &client_id).await {
             Ok(j) => j,
@@ -388,27 +419,79 @@ impl SoundCloudSource {
             Some(id) => id,
             None => return LoadResult::Empty {},
         };
-        let user_name = user_resp.username.unwrap_or_else(|| "Unknown User".to_owned());
+        let user_name = user_resp
+            .username
+            .unwrap_or_else(|| "Unknown User".to_owned());
         match sub_path {
             "popular-tracks" => {
-                self.load_collection_tracks(user_id, &user_name, "toptracks", "Popular tracks from", &client_id).await
+                self.load_collection_tracks(
+                    user_id,
+                    &user_name,
+                    "toptracks",
+                    "Popular tracks from",
+                    &client_id,
+                )
+                .await
             }
             "albums" => {
-                self.load_collection_tracks(user_id, &user_name, "albums", "Albums from", &client_id).await
+                self.load_collection_tracks(
+                    user_id,
+                    &user_name,
+                    "albums",
+                    "Albums from",
+                    &client_id,
+                )
+                .await
             }
             "sets" => {
-                self.load_collection_tracks(user_id, &user_name, "playlists", "Sets from", &client_id).await
+                self.load_collection_tracks(
+                    user_id,
+                    &user_name,
+                    "playlists",
+                    "Sets from",
+                    &client_id,
+                )
+                .await
             }
             "reposts" => {
-                self.load_collection_tracks(user_id, &user_name, "reposts", "Reposts from", &client_id).await
+                self.load_collection_tracks(
+                    user_id,
+                    &user_name,
+                    "reposts",
+                    "Reposts from",
+                    &client_id,
+                )
+                .await
             }
             "tracks" => {
-                self.load_collection_tracks(user_id, &user_name, "tracks", "Tracks from", &client_id).await
+                self.load_collection_tracks(
+                    user_id,
+                    &user_name,
+                    "tracks",
+                    "Tracks from",
+                    &client_id,
+                )
+                .await
             }
             "" | "spotlight" => {
-                let result = self.load_collection_tracks(user_id, &user_name, "spotlight", "Spotlight tracks from", &client_id).await;
+                let result = self
+                    .load_collection_tracks(
+                        user_id,
+                        &user_name,
+                        "spotlight",
+                        "Spotlight tracks from",
+                        &client_id,
+                    )
+                    .await;
                 if matches!(result, LoadResult::Empty {}) && sub_path.is_empty() {
-                    self.load_collection_tracks(user_id, &user_name, "tracks", "Tracks from", &client_id).await
+                    self.load_collection_tracks(
+                        user_id,
+                        &user_name,
+                        "tracks",
+                        "Tracks from",
+                        &client_id,
+                    )
+                    .await
                 } else {
                     result
                 }
@@ -425,36 +508,38 @@ impl SoundCloudSource {
         playlist_prefix: &str,
         client_id: &str,
     ) -> LoadResult {
-        let json = match api::load_collection_tracks_api(&self.client, user_id, endpoint, client_id).await {
+        let json = match api::load_collection_tracks_api(&self.client, user_id, endpoint, client_id)
+            .await
+        {
             Ok(j) => j,
             Err(_) => return LoadResult::Empty {},
         };
         let mut tracks = Vec::new();
-                if let Some(collection) = json.get("collection").and_then(|v| v.as_array()) {
-                    for item in collection {
-                        let track_json = if item.get("track").is_some() {
-                            item.get("track")
-                        } else if item.get("kind").and_then(|v| v.as_str()) == Some("track") {
-                            Some(item)
-                        } else if item.get("playlist").is_some() {
-                            None
-                        } else {
-                            Some(item)
-                        };
-                        if let Some(tj) = track_json {
-                            if let Ok(track_dto) = serde_json::from_value::<TrackDto>(tj.clone()) {
-                                if let Ok(track) = parse_track(&track_dto) {
-                                    tracks.push(track);
-                                }
-                            }
+        if let Some(collection) = json.get("collection").and_then(|v| v.as_array()) {
+            for item in collection {
+                let track_json = if item.get("track").is_some() {
+                    item.get("track")
+                } else if item.get("kind").and_then(|v| v.as_str()) == Some("track") {
+                    Some(item)
+                } else if item.get("playlist").is_some() {
+                    None
+                } else {
+                    Some(item)
+                };
+                if let Some(tj) = track_json {
+                    if let Ok(track_dto) = serde_json::from_value::<TrackDto>(tj.clone()) {
+                        if let Ok(track) = parse_track(&track_dto) {
+                            tracks.push(track);
+                        }
+                    }
                 }
             }
         }
-        
+
         if tracks.is_empty() {
             return LoadResult::Empty {};
         }
-        
+
         LoadResult::Playlist(PlaylistData {
             info: PlaylistInfo {
                 name: format!("{} {}", playlist_prefix, user_name),
@@ -478,7 +563,11 @@ impl SourcePlugin for SoundCloudSource {
     }
 
     fn can_handle(&self, identifier: &str) -> bool {
-        if self.search_prefixes().into_iter().any(|p| identifier.starts_with(p)) {
+        if self
+            .search_prefixes()
+            .into_iter()
+            .any(|p| identifier.starts_with(p))
+        {
             return true;
         }
         let url = identifier
@@ -503,7 +592,11 @@ impl SourcePlugin for SoundCloudSource {
         identifier: &str,
         _routeplanner: Option<Arc<dyn crate::routeplanner::RoutePlanner>>,
     ) -> LoadResult {
-        if let Some(prefix) = self.search_prefixes().into_iter().find(|p| identifier.starts_with(p)) {
+        if let Some(prefix) = self
+            .search_prefixes()
+            .into_iter()
+            .find(|p| identifier.starts_with(p))
+        {
             let query = identifier.strip_prefix(prefix).unwrap();
             return self.search_tracks(query.trim()).await;
         }

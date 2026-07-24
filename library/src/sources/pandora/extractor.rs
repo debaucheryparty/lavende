@@ -1,4 +1,6 @@
-use crate::protocol::tracks::{LoadResult, PlaylistData, PlaylistInfo, SearchResult, Track, TrackInfo};
+use crate::protocol::tracks::{
+    LoadResult, PlaylistData, PlaylistInfo, SearchResult, Track, TrackInfo,
+};
 use serde_json::{Value, json};
 
 const BASE_URL: &str = "https://www.pandora.com";
@@ -601,9 +603,12 @@ impl super::PandoraSource {
                                 let path = item.get("shareableUrlPath").and_then(|v| v.as_str());
                                 let artwork = self.get_artwork_url(item);
                                 let mut author_name = None;
-                                if let Some(l_id) = item.get("listenerPandoraId").and_then(|v| v.as_str()) {
+                                if let Some(l_id) =
+                                    item.get("listenerPandoraId").and_then(|v| v.as_str())
+                                {
                                     if let Some(author) = annotations.get(l_id) {
-                                        author_name = author.get("fullname").and_then(|v| v.as_str());
+                                        author_name =
+                                            author.get("fullname").and_then(|v| v.as_str());
                                     }
                                 }
                                 playlists.push(PlaylistData {

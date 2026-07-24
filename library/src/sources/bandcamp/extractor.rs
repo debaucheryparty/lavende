@@ -13,12 +13,16 @@ pub fn url_pattern() -> &'static Regex {
 
 pub fn identifier_pattern() -> &'static Regex {
     static REGEX: OnceLock<Regex> = OnceLock::new();
-    REGEX.get_or_init(|| Regex::new(r"^(?P<subdomain>[a-zA-Z0-9\-]+):(?P<slug>[a-zA-Z0-9\-]+)$").unwrap())
+    REGEX.get_or_init(|| {
+        Regex::new(r"^(?P<subdomain>[a-zA-Z0-9\-]+):(?P<slug>[a-zA-Z0-9\-]+)$").unwrap()
+    })
 }
 
 pub fn result_blocks_pattern() -> &'static Regex {
     static REGEX: OnceLock<Regex> = OnceLock::new();
-    REGEX.get_or_init(|| Regex::new(r"(?s)<li class=.searchresult data-search.[\s\S]*?</li>").unwrap())
+    REGEX.get_or_init(|| {
+        Regex::new(r"(?s)<li class=.searchresult data-search.[\s\S]*?</li>").unwrap()
+    })
 }
 
 pub fn art_url_pattern() -> &'static Regex {
@@ -28,7 +32,9 @@ pub fn art_url_pattern() -> &'static Regex {
 
 pub fn title_pattern() -> &'static Regex {
     static REGEX: OnceLock<Regex> = OnceLock::new();
-    REGEX.get_or_init(|| Regex::new(r#"(?s)<div class="heading">\s*<a[^>]*>\s*(.+?)\s*</a>"#).unwrap())
+    REGEX.get_or_init(|| {
+        Regex::new(r#"(?s)<div class="heading">\s*<a[^>]*>\s*(.+?)\s*</a>"#).unwrap()
+    })
 }
 
 pub fn subhead_pattern() -> &'static Regex {

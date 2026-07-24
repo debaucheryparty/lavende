@@ -57,11 +57,7 @@ impl QobuzSource {
         builder.header(reqwest::header::USER_AGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36")
     }
 
-    pub async fn api_request(
-        &self,
-        path: &str,
-        params: Vec<(&str, String)>,
-    ) -> AnyResult<Value> {
+    pub async fn api_request(&self, path: &str, params: Vec<(&str, String)>) -> AnyResult<Value> {
         let tokens = self
             .token_tracker
             .get_tokens()
@@ -170,9 +166,9 @@ impl SourcePlugin for QobuzSource {
                         .api_request("track/get", vec![("track_id", id.to_owned())])
                         .await
                     {
-                        Ok(json) => {
-                            LoadResult::Track(crate::protocol::tracks::Track::new(self.parse_qobuz_track(&json).info))
-                        }
+                        Ok(json) => LoadResult::Track(crate::protocol::tracks::Track::new(
+                            self.parse_qobuz_track(&json).info,
+                        )),
                         Err(_) => LoadResult::Empty {},
                     }
                 }

@@ -9,8 +9,7 @@ const EMBED_URL: &str = "https://open.spotify.com/embed/track/4cOdK2wGLETKBW3Pvg
 fn token_regex() -> &'static Regex {
     static REGEX: OnceLock<Regex> = OnceLock::new();
     REGEX.get_or_init(|| {
-        Regex::new(r#""accessToken":"([^"]+)""#)
-            .expect("spotify token regex is a valid literal")
+        Regex::new(r#""accessToken":"([^"]+)""#).expect("spotify token regex is a valid literal")
     })
 }
 

@@ -5,7 +5,12 @@ use std::sync::OnceLock;
 
 pub fn track_pattern() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"(?i)^https?://(?:www\.)?audius\.co/(?P<artist>[^/]+)/(?P<slug>[^/?#]+)(?:\?.*)?$").unwrap())
+    RE.get_or_init(|| {
+        Regex::new(
+            r"(?i)^https?://(?:www\.)?audius\.co/(?P<artist>[^/]+)/(?P<slug>[^/?#]+)(?:\?.*)?$",
+        )
+        .unwrap()
+    })
 }
 
 pub fn playlist_pattern() -> &'static Regex {
@@ -20,16 +25,14 @@ pub fn album_pattern() -> &'static Regex {
 
 pub fn user_pattern() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"(?i)^https?://(?:www\.)?audius\.co/(?P<user>[^/?#]+)(?:\?.*)?$").unwrap())
+    RE.get_or_init(|| {
+        Regex::new(r"(?i)^https?://(?:www\.)?audius\.co/(?P<user>[^/?#]+)(?:\?.*)?$").unwrap()
+    })
 }
 
 pub fn parse_tracks(data: &Value) -> Vec<Track> {
     data.as_array()
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|item| build_track(item))
-                .collect()
-        })
+        .map(|arr| arr.iter().filter_map(|item| build_track(item)).collect())
         .unwrap_or_default()
 }
 

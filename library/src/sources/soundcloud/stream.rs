@@ -1,10 +1,10 @@
-﻿use crate::{
+use crate::{
     audio::source::{HttpSource, create_client},
     common::types::AnyResult,
     config::HttpProxyConfig,
     sources::youtube::hls::{
-        fetcher::fetch_segment_into, resolver::resolve_playlist,
-        ts_demux::extract_adts_from_ts, types::Resource,
+        fetcher::fetch_segment_into, resolver::resolve_playlist, ts_demux::extract_adts_from_ts,
+        types::Resource,
     },
 };
 use parking_lot::{Condvar, Mutex};
@@ -225,7 +225,10 @@ impl Read for SoundCloudHlsReader {
             let remaining = self.buf.len() - self.pos;
             if remaining <= LOW_WATER_BYTES {
                 let (lock, cvar) = &*self.shared;
-                if let Some(mut state) = lock.try_lock() && !state.need_data && !state.eos {
+                if let Some(mut state) = lock.try_lock()
+                    && !state.need_data
+                    && !state.eos
+                {
                     state.need_data = true;
                     cvar.notify_one();
                 }

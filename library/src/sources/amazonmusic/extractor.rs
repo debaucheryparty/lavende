@@ -154,8 +154,7 @@ pub fn parse_artist_top_songs(
                     .as_str()
                     .unwrap_or("Unknown Title"),
             );
-            let artist =
-                normalize_artist(item["secondaryText"].as_str().unwrap_or(&artist_name));
+            let artist = normalize_artist(item["secondaryText"].as_str().unwrap_or(&artist_name));
             let item_artwork = item["image"]
                 .as_str()
                 .filter(|s| !s.is_empty())
@@ -477,9 +476,7 @@ pub fn is_invalid_community_playlist(resp: &Value) -> bool {
     };
     let is_dialog = template["interface"]
         .as_str()
-        .map(|i| {
-            i == "Web.TemplatesInterface.v1_0.Touch.DialogTemplateInterface.DialogTemplate"
-        })
+        .map(|i| i == "Web.TemplatesInterface.v1_0.Touch.DialogTemplateInterface.DialogTemplate")
         .unwrap_or(false);
     let is_service_error = template["header"]
         .as_str()

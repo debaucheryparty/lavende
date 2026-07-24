@@ -17,14 +17,18 @@ pub struct GaanaTrack {
 #[async_trait]
 impl PlayableTrack for GaanaTrack {
     async fn resolve(&self) -> Result<ResolvedTrack, String> {
-        let url = super::api::fetch_stream_url_internal(&self.client, &self.track_id, &self.stream_quality)
-            .await
-            .ok_or_else(|| {
-                format!(
-                    "GaanaTrack: Failed to fetch stream URL for {}",
-                    self.track_id
-                )
-            })?;
+        let url = super::api::fetch_stream_url_internal(
+            &self.client,
+            &self.track_id,
+            &self.stream_quality,
+        )
+        .await
+        .ok_or_else(|| {
+            format!(
+                "GaanaTrack: Failed to fetch stream URL for {}",
+                self.track_id
+            )
+        })?;
         let local_addr = self.local_addr;
         let proxy = self.proxy.clone();
         let is_hls = url.contains(".m3u8") || url.contains("/api/manifest/hls_");

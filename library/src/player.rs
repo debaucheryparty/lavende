@@ -257,10 +257,10 @@ impl Player {
             *self.event_sender.lock().await = Some(events.clone());
         }
         self.stop_signal.store(false, Ordering::Release);
-    fn get_source_manager_arc() -> Arc<crate::sources::manager::SourceManager> {
-        let guard = crate::get_source_manager().lock().unwrap();
-        guard.as_ref().unwrap().clone()
-    }
+        fn get_source_manager_arc() -> Arc<crate::sources::manager::SourceManager> {
+            let guard = crate::get_source_manager().lock().unwrap();
+            guard.as_ref().unwrap().clone()
+        }
         let sm_arc = get_source_manager_arc();
         let player_config = sm_arc.player_config.clone();
 
@@ -347,7 +347,8 @@ impl Player {
                         break;
                     }
                     if handle.get_state() == PlayState::Playing && ticks >= 10 {
-                        events_position.send("position", json!({ "position": handle.get_position() }));
+                        events_position
+                            .send("position", json!({ "position": handle.get_position() }));
                         ticks = 0;
                     }
                 }

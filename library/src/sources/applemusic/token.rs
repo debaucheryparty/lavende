@@ -74,17 +74,15 @@ impl AppleMusicTokenTracker {
         static INDEX_REGEX: OnceLock<Regex> = OnceLock::new();
 
         let script_re = SCRIPT_REGEX.get_or_init(|| {
-            Regex::new(
-                r#"<script\s+type="module"\s+crossorigin\s+src="(/assets/index[^"]+\.js)""#,
-            )
-            .unwrap()
+            Regex::new(r#"<script\s+type="module"\s+crossorigin\s+src="(/assets/index[^"]+\.js)""#)
+                .unwrap()
         });
 
         let script_path = match script_re.captures(&html) {
             Some(caps) => caps.get(1).map(|m| m.as_str()),
             None => {
-                let index_re = INDEX_REGEX
-                    .get_or_init(|| Regex::new(r#"/assets/index[^"]+\.js"#).unwrap());
+                let index_re =
+                    INDEX_REGEX.get_or_init(|| Regex::new(r#"/assets/index[^"]+\.js"#).unwrap());
                 index_re.find(&html).map(|m| m.as_str())
             }
         };

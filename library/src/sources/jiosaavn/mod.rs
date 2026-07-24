@@ -6,7 +6,10 @@ pub mod stream;
 use crate::{
     common::types::AudioFormat,
     protocol::tracks::{LoadError, LoadResult, PlaylistData, PlaylistInfo},
-    sources::{SourcePlugin, playable_track::{BoxedTrack, PlayableTrack, ResolvedTrack}},
+    sources::{
+        SourcePlugin,
+        playable_track::{BoxedTrack, PlayableTrack, ResolvedTrack},
+    },
 };
 use async_trait::async_trait;
 use regex::Regex;
@@ -190,11 +193,14 @@ impl JioSaavnSource {
                     .get("list")
                     .or_else(|| data.get("topSongs"))
                     .and_then(|v| v.as_array());
-                if let Some(arr) = list && !arr.is_empty() {
+                if let Some(arr) = list
+                    && !arr.is_empty()
+                {
                     let tracks: Vec<_> = arr
                         .iter()
                         .filter_map(|item| {
-                            let dto = serde_json::from_value::<JioSaavnTrackDto>(item.clone()).ok()?;
+                            let dto =
+                                serde_json::from_value::<JioSaavnTrackDto>(item.clone()).ok()?;
                             parse_track(&dto)
                         })
                         .collect();
@@ -244,7 +250,7 @@ impl JioSaavnSource {
             ("includeMetaTags", "1"),
             ("q", query),
         ];
-        
+
         match api::get_json(&self.client, &self.api_url, &params).await {
             Ok(json) => {
                 if let Some(results) = json.get("results").and_then(|v| v.as_array()) {
@@ -255,7 +261,8 @@ impl JioSaavnSource {
                         .iter()
                         .take(self.search_limit)
                         .filter_map(|item| {
-                            let dto = serde_json::from_value::<JioSaavnTrackDto>(item.clone()).ok()?;
+                            let dto =
+                                serde_json::from_value::<JioSaavnTrackDto>(item.clone()).ok()?;
                             parse_track(&dto)
                         })
                         .collect();
@@ -322,7 +329,8 @@ impl JioSaavnSource {
                     .values()
                     .filter_map(|v| {
                         let song_val = v.get("song")?;
-                        let dto = serde_json::from_value::<JioSaavnTrackDto>(song_val.clone()).ok()?;
+                        let dto =
+                            serde_json::from_value::<JioSaavnTrackDto>(song_val.clone()).ok()?;
                         parse_track(&dto)
                     })
                     .collect();
@@ -391,8 +399,13 @@ impl SourcePlugin for JioSaavnSource {
     }
 
     fn can_handle(&self, identifier: &str) -> bool {
-        self.search_prefixes().iter().any(|p| identifier.starts_with(p))
-            || self.rec_prefixes().iter().any(|p| identifier.starts_with(p))
+        self.search_prefixes()
+            .iter()
+            .any(|p| identifier.starts_with(p))
+            || self
+                .rec_prefixes()
+                .iter()
+                .any(|p| identifier.starts_with(p))
             || url_regex().is_match(identifier)
     }
 
@@ -409,11 +422,19 @@ impl SourcePlugin for JioSaavnSource {
         identifier: &str,
         _routeplanner: Option<Arc<dyn crate::routeplanner::RoutePlanner>>,
     ) -> LoadResult {
-        if let Some(prefix) = self.search_prefixes().iter().find(|p| identifier.starts_with(*p)) {
+        if let Some(prefix) = self
+            .search_prefixes()
+            .iter()
+            .find(|p| identifier.starts_with(*p))
+        {
             let query = &identifier[prefix.len()..];
             return self.search(query.trim()).await;
         }
-        if let Some(prefix) = self.rec_prefixes().iter().find(|p| identifier.starts_with(*p)) {
+        if let Some(prefix) = self
+            .rec_prefixes()
+            .iter()
+            .find(|p| identifier.starts_with(*p))
+        {
             let query = &identifier[prefix.len()..];
             return self.get_recommendations(query.trim()).await;
         }

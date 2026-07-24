@@ -21,9 +21,7 @@ impl PlayableTrack for BandcampTrack {
         } else {
             super::api::fetch_stream_url(&self.client, &self.uri)
                 .await
-                .ok_or_else(|| {
-                    format!("Failed to fetch Bandcamp stream URL for {}", self.uri)
-                })?
+                .ok_or_else(|| format!("Failed to fetch Bandcamp stream URL for {}", self.uri))?
         };
         debug!("Bandcamp stream URL: {url}");
         HttpTrack {

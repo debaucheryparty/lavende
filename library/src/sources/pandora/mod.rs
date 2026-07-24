@@ -36,7 +36,10 @@ impl PandoraSource {
         let (s_limit, csrf_override) = config
             .map(|c| (c.search_limit, c.csrf_token))
             .unwrap_or((10, None));
-        let token_tracker = Arc::new(token::PandoraTokenTracker::new(client.clone(), csrf_override));
+        let token_tracker = Arc::new(token::PandoraTokenTracker::new(
+            client.clone(),
+            csrf_override,
+        ));
         token_tracker.clone().init();
         Ok(Self {
             client,

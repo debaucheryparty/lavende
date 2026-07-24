@@ -10,3 +10,6 @@ exclude = [
     "_examples/rust",
 ]
 resolver = "2"
+
+[workspace.package]
+version = "1.0.10"

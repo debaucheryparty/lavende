@@ -27,10 +27,7 @@ impl PlayableTrack for AudiomackTrack {
     }
 }
 
-pub async fn fetch_stream_url(
-    client: &Arc<reqwest::Client>,
-    identifier: &str,
-) -> Option<String> {
+pub async fn fetch_stream_url(client: &Arc<reqwest::Client>, identifier: &str) -> Option<String> {
     let nonce = generate_nonce();
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -43,7 +40,7 @@ pub async fn fetch_stream_url(
     body.insert("session".to_owned(), "backend-session".to_owned());
     body.insert("hq".to_owned(), "true".to_owned());
     let auth_post = super::utils::build_auth_header("POST", &post_url, &body, &nonce, &timestamp);
-    
+
     if let Ok(resp) = client
         .post(&post_url)
         .header("Authorization", auth_post)
@@ -61,7 +58,7 @@ pub async fn fetch_stream_url(
     query.insert("environment".to_owned(), "desktop-web".to_owned());
     query.insert("hq".to_owned(), "true".to_owned());
     let auth_get = super::utils::build_auth_header("GET", &get_url, &query, &nonce, &timestamp);
-    
+
     if let Ok(resp) = client
         .get(&get_url)
         .header("Authorization", auth_get)

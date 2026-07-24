@@ -121,8 +121,7 @@ impl TidalOAuth {
                 match error {
                     "authorization_pending" => continue,
                     "slow_down" => {
-                        interval_timer =
-                            tokio::time::interval(Duration::from_secs(interval + 3));
+                        interval_timer = tokio::time::interval(Duration::from_secs(interval + 3));
                     }
                     _ => {
                         error!("Tidal OAuth polling failed: {}", error);

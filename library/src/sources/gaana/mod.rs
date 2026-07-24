@@ -7,8 +7,8 @@ use serde_json::Value;
 use std::sync::Arc;
 use tracing::warn;
 
-pub mod crypto;
 pub mod api;
+pub mod crypto;
 pub mod extractor;
 pub mod reader;
 pub mod track;
@@ -354,12 +354,8 @@ impl SourcePlugin for GaanaSource {
         } else {
             identifier.to_owned()
         };
-        let stream_url = api::fetch_stream_url_internal(
-            &self.client,
-            &track_id,
-            &self.stream_quality,
-        )
-        .await;
+        let stream_url =
+            api::fetch_stream_url_internal(&self.client, &track_id, &self.stream_quality).await;
         if stream_url.is_none() {
             warn!("Gaana: no stream URL for track {track_id}, falling back to mirrors");
             return None;

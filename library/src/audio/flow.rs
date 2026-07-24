@@ -57,7 +57,11 @@ pub mod controller {
                 frame_rx,
                 frame_tx,
                 latest_opus: None,
-                opus_decoder: audiopus::coder::Decoder::new(audiopus::SampleRate::Hz48000, audiopus::Channels::Stereo).expect("Failed to create Opus decoder"),
+                opus_decoder: audiopus::coder::Decoder::new(
+                    audiopus::SampleRate::Hz48000,
+                    audiopus::Channels::Stereo,
+                )
+                .expect("Failed to create Opus decoder"),
             }
         }
         pub fn run(&mut self) {
@@ -95,7 +99,10 @@ pub mod controller {
         pub fn try_pop_frame(&mut self) -> Result<Option<PooledBuffer>, AudioError> {
             if !self.decoder_done {
                 while self.pending_pcm.len() < FRAME_SIZE_SAMPLES {
-                    match self.frame_rx.recv_timeout(std::time::Duration::from_millis(5)) {
+                    match self
+                        .frame_rx
+                        .recv_timeout(std::time::Duration::from_millis(5))
+                    {
                         Ok(AudioFrame::Pcm(chunk)) if chunk.is_empty() => {
                             self.pending_pcm.clear();
                             self.decoder_done = false;
@@ -107,9 +114,14 @@ pub mod controller {
                         Ok(AudioFrame::Opus(packet)) => {
                             self.latest_opus = Some(packet.clone());
                             let mut pcm = vec![0i16; 1920 * 2];
-                            let opus_packet = audiopus::packet::Packet::try_from(packet.as_slice()).ok();
-                            if let Ok(mut_signals) = audiopus::MutSignals::try_from(pcm.as_mut_slice()) {
-                                if let Ok(decoded_samples) = self.opus_decoder.decode(opus_packet, mut_signals, false) {
+                            let opus_packet =
+                                audiopus::packet::Packet::try_from(packet.as_slice()).ok();
+                            if let Ok(mut_signals) =
+                                audiopus::MutSignals::try_from(pcm.as_mut_slice())
+                            {
+                                if let Ok(decoded_samples) =
+                                    self.opus_decoder.decode(opus_packet, mut_signals, false)
+                                {
                                     pcm.truncate(decoded_samples * 2);
                                     self.pending_pcm.extend_from_slice(&pcm);
                                 }

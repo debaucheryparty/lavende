@@ -1,12 +1,12 @@
-use cbc::cipher::{BlockDecryptMut, KeyIvInit};
-use md5::{Digest, Md5};
-use tracing::warn;
 use crate::{
     audio::source::{AudioSource, HttpSource, create_client},
     common::types::AnyResult,
 };
+use cbc::cipher::{BlockDecryptMut, KeyIvInit};
+use md5::{Digest, Md5};
 use std::io::{Read, Seek, SeekFrom};
 use symphonia::core::io::MediaSource;
+use tracing::warn;
 
 type BlowfishCbc = cbc::Decryptor<blowfish::Blowfish>;
 pub const CHUNK_SIZE: usize = 2048;
@@ -35,10 +35,8 @@ impl DeezerCrypt {
             let len = std::cmp::min(chunk.len(), CHUNK_SIZE);
             buffer[..len].copy_from_slice(&chunk[..len]);
             if let Ok(cipher) = BlowfishCbc::new_from_slices(&self.key, &iv) {
-                if let Ok(decrypted) = cipher
-                    .decrypt_padded_mut::<cbc::cipher::block_padding::NoPadding>(
-                        &mut buffer,
-                    )
+                if let Ok(decrypted) =
+                    cipher.decrypt_padded_mut::<cbc::cipher::block_padding::NoPadding>(&mut buffer)
                 {
                     dest.extend_from_slice(decrypted);
                     return;
