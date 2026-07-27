@@ -34,8 +34,8 @@ pub enum CommandOutcome {
 }
 pub struct AudioProcessor {
     format: Box<dyn FormatReader>,
-    decoder: Box<dyn Decoder>,
-    resampler: Resampler,
+    decoder: Option<Box<dyn Decoder>>,
+    resampler: Option<Resampler>,
     track_id: u32,
     engine: BoxedEngine,
     cmd_rx: Receiver<DecoderCommand>,
@@ -46,6 +46,7 @@ pub struct AudioProcessor {
     config: PlayerConfig,
     recoverable_errors: u32,
     downmix_buf: Vec<i16>,
+    passthrough: bool,
 }
 impl AudioProcessor {
     pub fn new(
@@ -73,45 +74,99 @@ impl AudioProcessor {
         error_tx: Option<flume::Sender<String>>,
         config: PlayerConfig,
     ) -> Result<Self, Error> {
-        let DemuxResult::Transcode {
-            format,
-            track_id,
-            decoder,
-            sample_rate,
-            channels,
-        } = open_format(source, kind)?;
-        debug!(
-            "AudioProcessor: opened format — {}Hz {}ch",
-            sample_rate, channels
-        );
-        let resampler = Self::make_resampler(sample_rate, &config);
-        Ok(Self {
-            format,
-            decoder,
-            resampler,
-            track_id,
-            engine,
-            cmd_rx,
-            error_tx,
-            sample_buf: None,
-            source_rate: sample_rate,
-            channels,
-            config,
-            recoverable_errors: 0,
-            downmix_buf: Vec::with_capacity(1920),
-        })
+        match open_format(source, kind)? {
+            DemuxResult::OpusPassthrough { format, track_id } => {
+                debug!("AudioProcessor: opus passthrough — zero decode overhead");
+                Ok(Self {
+                    format,
+                    decoder: None,
+                    resampler: None,
+                    track_id,
+                    engine,
+                    cmd_rx,
+                    error_tx,
+                    sample_buf: None,
+                    source_rate: TARGET_SAMPLE_RATE,
+                    channels: MIXER_CHANNELS,
+                    config,
+                    recoverable_errors: 0,
+                    downmix_buf: Vec::new(),
+                    passthrough: true,
+                })
+            }
+            DemuxResult::Transcode {
+                format,
+                track_id,
+                decoder,
+                sample_rate,
+                channels,
+            } => {
+                let resampler = Self::make_resampler(sample_rate, &config);
+                Ok(Self {
+                    format,
+                    decoder: Some(decoder),
+                    resampler: Some(resampler),
+                    track_id,
+                    engine,
+                    cmd_rx,
+                    error_tx,
+                    sample_buf: None,
+                    source_rate: sample_rate,
+                    channels,
+                    config,
+                    recoverable_errors: 0,
+                    downmix_buf: Vec::with_capacity(1920),
+                    passthrough: false,
+                })
+            }
+        }
     }
 }
 impl AudioProcessor {
     pub fn run(&mut self) -> Result<(), Error> {
-        self.run_inner(false)
+        if self.passthrough {
+            self.run_passthrough(false)
+        } else {
+            self.run_transcode(false)
+        }
     }
     pub fn run_with_seek(&mut self) -> Result<(), Error> {
-        self.run_inner(true)
+        if self.passthrough {
+            self.run_passthrough(true)
+        } else {
+            self.run_transcode(true)
+        }
     }
 }
 impl AudioProcessor {
-    fn run_inner(&mut self, seek_enabled: bool) -> Result<(), Error> {
+    fn run_passthrough(&mut self, seek_enabled: bool) -> Result<(), Error> {
+        let _span = span!(Level::DEBUG, "opus_passthrough").entered();
+        debug!("Starting opus passthrough loop (seek={})", seek_enabled);
+        loop {
+            match self.check_commands() {
+                CommandOutcome::Stop => break,
+                CommandOutcome::Seeked | CommandOutcome::SeekFailed if seek_enabled => continue,
+                _ => {}
+            }
+            let packet = match self.format.next_packet() {
+                Ok(p) => p,
+                Err(Error::IoError(e)) if e.kind() == ErrorKind::UnexpectedEof => break,
+                Err(e) => {
+                    self.send_error(format!("Packet read error: {e}"));
+                    return Err(e);
+                }
+            };
+            if packet.track_id() != self.track_id {
+                continue;
+            }
+            if !self.engine.push(AudioFrame::Opus(packet.data.into_vec())) {
+                return Ok(());
+            }
+        }
+        debug!("Passthrough loop finished");
+        Ok(())
+    }
+    fn run_transcode(&mut self, seek_enabled: bool) -> Result<(), Error> {
         let _span = span!(Level::DEBUG, "audio_processor").entered();
         debug!(
             "Starting transcode loop (seek={}): {}Hz {}ch -> {}Hz",
@@ -136,7 +191,9 @@ impl AudioProcessor {
             if packet.track_id() != self.track_id {
                 continue;
             }
-            match self.decoder.decode(&packet) {
+            let decoder = self.decoder.as_mut().unwrap();
+            let resampler = self.resampler.as_mut().unwrap();
+            match decoder.decode(&packet) {
                 Ok(decoded) => {
                     self.recoverable_errors = 0;
                     let spec = *decoded.spec();
@@ -150,11 +207,11 @@ impl AudioProcessor {
                         let frame_rate = spec.rate;
                         if frame_rate != self.source_rate {
                             debug!(
-                                "AudioProcessor: frame rate mismatch ({}Hz vs {}Hz) — re-initializing resampler",
-                                frame_rate, self.source_rate
+                                "AudioProcessor: rate changed {}Hz -> {}Hz — rebuilding resampler",
+                                self.source_rate, frame_rate
                             );
                             self.source_rate = frame_rate;
-                            self.resampler = Self::make_resampler(self.source_rate, &self.config);
+                            *resampler = Self::make_resampler(self.source_rate, &self.config);
                         }
                         let source_rate = self.source_rate;
                         let pcm_data = if frame_channels == MIXER_CHANNELS {
@@ -172,15 +229,15 @@ impl AudioProcessor {
                             .ceil() as usize
                             + 32;
                         let mut resampled = crate::audio::buffer::acquire_buffer(capacity);
-                        if self.resampler.is_passthrough() {
+                        if resampler.is_passthrough() {
                             resampled.extend_from_slice(pcm_data);
                         } else {
-                            self.resampler.process(pcm_data, &mut resampled);
+                            resampler.process(pcm_data, &mut resampled);
                         }
                         if !resampled.is_empty() {
                             if packet_count == 1 {
                                 debug!(
-                                    "AudioProcessor: Sending first frame to engine (capacity={})",
+                                    "AudioProcessor: first frame sent (capacity={})",
                                     resampled.capacity()
                                 );
                             }
@@ -207,8 +264,8 @@ impl AudioProcessor {
                     }
                 }
                 Err(Error::ResetRequired) => {
-                    self.decoder.reset();
-                    self.resampler.reset();
+                    decoder.reset();
+                    resampler.reset();
                     self.sample_buf = None;
                     warn!("Decoder reset required — resetting state and continuing");
                 }
@@ -238,8 +295,12 @@ impl AudioProcessor {
                     )
                     .is_ok()
                 {
-                    self.resampler.reset();
-                    self.decoder.reset();
+                    if let Some(r) = &mut self.resampler {
+                        r.reset();
+                    }
+                    if let Some(d) = &mut self.decoder {
+                        d.reset();
+                    }
                     self.sample_buf = None;
                     let _ = self.engine.push(AudioFrame::Pcm(Vec::new()));
                     CommandOutcome::Seeked

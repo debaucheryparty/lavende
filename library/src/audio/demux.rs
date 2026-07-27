@@ -121,7 +121,7 @@ use crate::audio::constants::{MIXER_CHANNELS, TARGET_SAMPLE_RATE};
 pub use crate::common::types::AudioFormat;
 pub use format::detect_format;
 use symphonia::core::{
-    codecs::{CODEC_TYPE_NULL, Decoder, DecoderOptions},
+    codecs::{CODEC_TYPE_NULL, CODEC_TYPE_OPUS, Decoder, DecoderOptions},
     errors::Error,
     formats::{FormatOptions, FormatReader},
     io::{MediaSource, MediaSourceStream},
@@ -136,6 +136,10 @@ pub enum DemuxResult {
         decoder: Box<dyn Decoder>,
         sample_rate: u32,
         channels: usize,
+    },
+    OpusPassthrough {
+        format: Box<dyn FormatReader>,
+        track_id: u32,
     },
 }
 pub fn open_format(
@@ -172,7 +176,10 @@ pub fn open_format(
         .channels
         .map(|c| c.count())
         .unwrap_or(MIXER_CHANNELS);
-    let decoder: Box<dyn Decoder> = if codec == symphonia::core::codecs::CODEC_TYPE_OPUS {
+    if codec == CODEC_TYPE_OPUS && sample_rate == TARGET_SAMPLE_RATE && channels == MIXER_CHANNELS {
+        return Ok(DemuxResult::OpusPassthrough { format, track_id });
+    }
+    let decoder: Box<dyn Decoder> = if codec == CODEC_TYPE_OPUS {
         Box::new(
             crate::audio::codec::opus_decoder::OpusCodecDecoder::try_new(
                 &track.codec_params,

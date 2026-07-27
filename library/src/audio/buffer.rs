@@ -169,6 +169,28 @@ pub mod ring {
             self.length -= to_read.len();
             Some(to_read)
         }
+        pub fn read_into(&mut self, out: &mut [u8]) -> usize {
+            let read_len = self.peek_into(out);
+            self.read_offset = (self.read_offset + read_len) % self.size;
+            self.length -= read_len;
+            read_len
+        }
+        pub fn peek_into(&self, out: &mut [u8]) -> usize {
+            let to_read = out.len().min(self.length);
+            if to_read == 0 {
+                return 0;
+            }
+            let available_at_end = self.size - self.read_offset;
+            if to_read <= available_at_end {
+                out[..to_read]
+                    .copy_from_slice(&self.buf[self.read_offset..self.read_offset + to_read]);
+            } else {
+                out[..available_at_end].copy_from_slice(&self.buf[self.read_offset..]);
+                out[available_at_end..to_read]
+                    .copy_from_slice(&self.buf[..to_read - available_at_end]);
+            }
+            to_read
+        }
         pub fn peek(&self, n: usize) -> Option<Vec<u8>> {
             let to_read = n.min(self.length);
             if to_read == 0 {

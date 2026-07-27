@@ -442,7 +442,7 @@ pub mod session {
         use super::types::GatewayError;
         use crate::{
             audio::{Mixer, engine::Encoder, filters::FilterChain},
-            common::types::Shared,
+            common::types::{Shared, SyncShared},
             gateway::{
                 DaveHandler,
                 constants::{
@@ -508,19 +508,19 @@ pub mod session {
             Err(GatewayError::Discovery("Exhausted".into()))
         }
         pub struct SpeakConfig {
-            pub mixer: Shared<Mixer>,
+            pub mixer: SyncShared<Mixer>,
             pub socket: Arc<tokio::net::UdpSocket>,
             pub addr: SocketAddr,
             pub ssrc: u32,
             pub key: [u8; 32],
             pub mode: String,
             pub dave: Shared<DaveHandler>,
-            pub filter_chain: Shared<FilterChain>,
+            pub filter_chain: SyncShared<FilterChain>,
             pub frames_sent: Arc<std::sync::atomic::AtomicU64>,
             pub frames_nulled: Arc<std::sync::atomic::AtomicU64>,
             pub cancel_token: CancellationToken,
             pub speaking_tx: UnboundedSender<bool>,
-            pub persistent_state: Arc<tokio::sync::Mutex<super::types::PersistentSessionState>>,
+            pub persistent_state: Shared<super::types::PersistentSessionState>,
         }
         pub async fn speak_loop(config: SpeakConfig) -> Result<(), GatewayError> {
             let rtp_state = { config.persistent_state.lock().await.rtp_state };
@@ -584,28 +584,12 @@ pub mod session {
                 opus: &mut [u8],
                 ts_pcm: &mut [i16],
             ) -> Result<(), GatewayError> {
-                macro_rules! try_lock_yield {
-                    ($mutex:expr) => {{
-                        let mut guard = None;
-                        for _ in 0..10 {
-                            if let Ok(g) = $mutex.try_lock() {
-                                guard = Some(g);
-                                break;
-                            }
-                            tokio::task::yield_now().await;
-                        }
-                        guard
-                    }};
-                }
                 let mut loop_count = 0;
                 while loop_count < 10 {
                     loop_count += 1;
                     let ready_from_ts = {
-                        if let Some(mut filters) = try_lock_yield!(self.config.filter_chain) {
-                            filters.has_timescale() && filters.fill_frame(ts_pcm)
-                        } else {
-                            false
-                        }
+                        let mut filters = self.config.filter_chain.lock();
+                        filters.has_timescale() && filters.fill_frame(ts_pcm)
                     };
                     if ready_from_ts {
                         self.set_speaking(true);
@@ -617,8 +601,9 @@ pub mod session {
                         return self.send_pcm(encoder, ts_pcm, opus).await;
                     }
                     let mut has_input = false;
-                    let mut opus_data = None;
-                    if let Some(mut mixer) = try_lock_yield!(self.config.mixer) {
+                    let mut opus_data: Option<Vec<u8>> = None;
+                    {
+                        let mut mixer = self.config.mixer.lock();
                         if let Some(data) = mixer.take_opus_frame() {
                             opus_data = Some(data);
                         } else {
@@ -657,12 +642,9 @@ pub mod session {
                         return Ok(());
                     }
                     let has_ts = {
-                        if let Some(mut filters) = try_lock_yield!(self.config.filter_chain) {
-                            filters.process(pcm);
-                            filters.has_timescale()
-                        } else {
-                            false
-                        }
+                        let mut filters = self.config.filter_chain.lock();
+                        filters.process(pcm);
+                        filters.has_timescale()
                     };
                     if !has_ts {
                         if has_input {
@@ -677,11 +659,8 @@ pub mod session {
                         return self.send_pcm(encoder, pcm, opus).await;
                     }
                     let filled_on_silence = {
-                        if let Some(mut filters) = try_lock_yield!(self.config.filter_chain) {
-                            !has_input && filters.fill_frame(ts_pcm)
-                        } else {
-                            false
-                        }
+                        let mut filters = self.config.filter_chain.lock();
+                        !has_input && filters.fill_frame(ts_pcm)
                     };
                     if !has_input && !filled_on_silence {
                         break;
@@ -1350,7 +1329,7 @@ pub mod session {
     };
     use crate::{
         audio::{Mixer, filters::FilterChain},
-        common::types::{ChannelId, GuildId, SessionId, Shared, UserId},
+        common::types::{ChannelId, GuildId, SessionId, Shared, SyncShared, UserId},
         gateway::constants::VOICE_GATEWAY_VERSION,
         protocol::LavendeEvent,
     };
@@ -1370,8 +1349,8 @@ pub mod session {
         session_id: SessionId,
         token: String,
         endpoint: String,
-        pub mixer: Shared<Mixer>,
-        pub filter_chain: Shared<FilterChain>,
+        pub mixer: SyncShared<Mixer>,
+        pub filter_chain: SyncShared<FilterChain>,
         pub ping: Arc<AtomicI64>,
         event_tx: Option<UnboundedSender<LavendeEvent>>,
         pub frames_sent: Arc<std::sync::atomic::AtomicU64>,
@@ -1388,8 +1367,8 @@ pub mod session {
         pub session_id: SessionId,
         pub token: String,
         pub endpoint: String,
-        pub mixer: Shared<Mixer>,
-        pub filter_chain: Shared<FilterChain>,
+        pub mixer: SyncShared<Mixer>,
+        pub filter_chain: SyncShared<FilterChain>,
         pub ping: Arc<AtomicI64>,
         pub event_tx: Option<UnboundedSender<LavendeEvent>>,
         pub frames_sent: Arc<std::sync::atomic::AtomicU64>,

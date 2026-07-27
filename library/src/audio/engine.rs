@@ -28,7 +28,10 @@ pub mod encoder {
                 OpusEncoder::new(SampleRate::Hz48000, Channels::Stereo, Application::Audio)
                     .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
             encoder
-                .set_bitrate(Bitrate::Auto)
+                .set_bitrate(Bitrate::BitsPerSecond(384_000))
+                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            encoder
+                .set_vbr(true)
                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
             Ok(Self { encoder })
         }

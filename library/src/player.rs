@@ -6,7 +6,7 @@ use crate::audio::{
     filters::FilterChain,
     playback::{TrackHandle, handle::PlaybackState as PlayState},
 };
-use crate::common::types::{ChannelId, GuildId, SessionId, Shared, UserId};
+use crate::common::types::{ChannelId, GuildId, SessionId, Shared, SyncShared, UserId};
 use crate::events::EventSender;
 use crate::gateway::{VoiceGateway, VoiceGatewayConfig};
 use serde::{Deserialize, Serialize};
@@ -211,8 +211,8 @@ pub struct Player {
     pub guild_id: String,
     pub paused: Arc<AtomicBool>,
     pub volume: Arc<AtomicU32>,
-    pub mixer: Shared<Mixer>,
-    pub filter_chain: Shared<FilterChain>,
+    pub mixer: SyncShared<Mixer>,
+    pub filter_chain: SyncShared<FilterChain>,
     pub voice_gateway_cancel: Arc<tokio::sync::Mutex<Option<CancellationToken>>>,
     pub position_tracking_cancel: Arc<tokio::sync::Mutex<Option<CancellationToken>>>,
     pub track_handle: Arc<tokio::sync::Mutex<Option<TrackHandle>>>,
@@ -227,8 +227,8 @@ impl Player {
             guild_id,
             paused: Arc::new(AtomicBool::new(false)),
             volume: Arc::new(AtomicU32::new(1.0f32.to_bits())),
-            mixer: Shared::new(tokio::sync::Mutex::new(Mixer::new(48000))),
-            filter_chain: Shared::new(tokio::sync::Mutex::new(FilterChain::from_config(
+            mixer: Arc::new(parking_lot::Mutex::new(Mixer::new(48000))),
+            filter_chain: Arc::new(parking_lot::Mutex::new(FilterChain::from_config(
                 &Filters::default(),
             ))),
             voice_gateway_cancel: Arc::new(tokio::sync::Mutex::new(None)),
@@ -279,7 +279,7 @@ impl Player {
             }
         }
         {
-            let mut mixer_guard = self.mixer.lock().await;
+            let mut mixer_guard = self.mixer.lock();
             if !player_config.transitions.gapless && !player_config.transitions.crossfade {
                 mixer_guard.stop_all();
             }
@@ -297,7 +297,7 @@ impl Player {
         let (handle, audio_state, vol, pos, is_buffering) =
             TrackHandle::new(cmd_tx, Arc::new(AtomicBool::new(false)));
         {
-            let mut mixer_guard = self.mixer.lock().await;
+            let mut mixer_guard = self.mixer.lock();
             mixer_guard.add_track(
                 frame_rx,
                 audio_state,
@@ -431,7 +431,7 @@ impl Player {
         if let Some(handle) = &*self.track_handle.lock().await {
             handle.stop();
         }
-        let mut mixer_guard = self.mixer.lock().await;
+        let mut mixer_guard = self.mixer.lock();
         mixer_guard.stop_all();
     }
     pub async fn seek(&self, position_ms: i64) {
@@ -471,7 +471,7 @@ impl Player {
             .map_err(|e| format!("Invalid filters JSON: {e}"))?;
         let new_chain = FilterChain::from_config(&filters);
         {
-            let mut filter_chain_guard = self.filter_chain.lock().await;
+            let mut filter_chain_guard = self.filter_chain.lock();
             *filter_chain_guard = new_chain;
         }
         Ok(())

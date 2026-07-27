@@ -46,9 +46,11 @@ pub mod errors {
 pub mod types {
     use rand::{Rng, distributions::Alphanumeric};
     use std::{ops::Deref, sync::Arc};
-    use tokio::sync::{Mutex, RwLock};
-    pub type Shared<T> = Arc<Mutex<T>>;
-    pub type SharedRw<T> = Arc<RwLock<T>>;
+    use tokio::sync::{Mutex as AsyncMutex, RwLock as AsyncRwLock};
+    pub type Shared<T> = Arc<AsyncMutex<T>>;
+    pub type SharedRw<T> = Arc<AsyncRwLock<T>>;
+    pub type SyncShared<T> = Arc<parking_lot::Mutex<T>>;
+    pub type SyncSharedRw<T> = Arc<parking_lot::RwLock<T>>;
     pub type AnyError = Box<dyn std::error::Error + Send + Sync>;
     pub type AnyResult<T> = std::result::Result<T, AnyError>;
     macro_rules! define_id {

@@ -2235,9 +2235,70 @@ impl ConcreteFilter {
     }
 }
 pub struct FilterChain {
-    filters: Vec<ConcreteFilter>,
+    pub(crate) filters: Vec<ConcreteFilter>,
     timescale: Option<timescale::TimescaleFilter>,
-    timescale_buffer: Vec<i16>,
+    timescale_buffer: TimescaleBuffer,
+}
+
+const MAX_TS_SAMPLES: usize = 1920 * 1024;
+
+struct TimescaleBuffer {
+    buf: Vec<i16>,
+    read_pos: usize,
+    write_pos: usize,
+    len: usize,
+}
+
+impl TimescaleBuffer {
+    fn new(capacity: usize) -> Self {
+        Self {
+            buf: vec![0; capacity],
+            read_pos: 0,
+            write_pos: 0,
+            len: 0,
+        }
+    }
+    fn push_slice(&mut self, data: &[i16]) {
+        let mut data_len = data.len();
+        if data_len > self.buf.len() {
+            data_len = self.buf.len();
+        }
+        let data = &data[data.len() - data_len..];
+        if self.len + data_len > self.buf.len() {
+            let overflow = (self.len + data_len) - self.buf.len();
+            self.read_pos = (self.read_pos + overflow) % self.buf.len();
+            self.len -= overflow;
+        }
+        let first_len = (self.buf.len() - self.write_pos).min(data_len);
+        self.buf[self.write_pos..self.write_pos + first_len].copy_from_slice(&data[..first_len]);
+        if first_len < data_len {
+            self.buf[..data_len - first_len].copy_from_slice(&data[first_len..]);
+        }
+        self.write_pos = (self.write_pos + data_len) % self.buf.len();
+        self.len += data_len;
+    }
+    fn read_into(&mut self, output: &mut [i16]) -> bool {
+        let out_len = output.len();
+        if self.len < out_len {
+            return false;
+        }
+        let first_len = (self.buf.len() - self.read_pos).min(out_len);
+        output[..first_len].copy_from_slice(&self.buf[self.read_pos..self.read_pos + first_len]);
+        if first_len < out_len {
+            output[first_len..].copy_from_slice(&self.buf[..out_len - first_len]);
+        }
+        self.read_pos = (self.read_pos + out_len) % self.buf.len();
+        self.len -= out_len;
+        true
+    }
+    fn len(&self) -> usize {
+        self.len
+    }
+    fn clear(&mut self) {
+        self.read_pos = 0;
+        self.write_pos = 0;
+        self.len = 0;
+    }
 }
 impl FilterChain {
     pub fn from_config(config: &Filters) -> Self {
@@ -2431,7 +2492,7 @@ impl FilterChain {
         Self {
             filters,
             timescale,
-            timescale_buffer: Vec::new(),
+            timescale_buffer: TimescaleBuffer::new(MAX_TS_SAMPLES),
         }
     }
     pub fn is_active(&self) -> bool {
@@ -2443,28 +2504,14 @@ impl FilterChain {
         }
         if let Some(ref mut ts) = self.timescale {
             let resampled = ts.process_resample(samples);
-            self.timescale_buffer.extend_from_slice(&resampled);
-            const MAX_TS_SAMPLES: usize = 1920 * 1024;
-            if self.timescale_buffer.len() > MAX_TS_SAMPLES {
-                let excess = self.timescale_buffer.len() - MAX_TS_SAMPLES;
-                let excess = excess - (excess % 2);
-                if excess > 0 {
-                    self.timescale_buffer.drain(..excess);
-                }
-            }
+            self.timescale_buffer.push_slice(&resampled);
         }
     }
     pub fn fill_frame(&mut self, output: &mut [i16]) -> bool {
         if self.timescale.is_none() {
             return false;
         }
-        if self.timescale_buffer.len() >= output.len() {
-            output.copy_from_slice(&self.timescale_buffer[..output.len()]);
-            self.timescale_buffer.drain(..output.len());
-            true
-        } else {
-            false
-        }
+        self.timescale_buffer.read_into(output)
     }
     pub fn has_timescale(&self) -> bool {
         self.timescale.is_some()

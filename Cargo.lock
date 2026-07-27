@@ -1521,7 +1521,7 @@ dependencies = [
 
 [[package]]
 name = "lavende"
-version = "1.0.9"
+version = "1.0.10"
 dependencies = [
  "async-trait",
  "dashmap",
@@ -1536,7 +1536,7 @@ dependencies = [
 
 [[package]]
 name = "lavende-core"
-version = "0.1.19"
+version = "0.1.20"
 dependencies = [
  "aes",
  "async-trait",
@@ -1584,7 +1584,7 @@ dependencies = [
 
 [[package]]
 name = "lavende-node"
-version = "1.0.9"
+version = "1.0.10"
 dependencies = [
  "lavende-core",
  "napi",
@@ -1596,7 +1596,7 @@ dependencies = [
 
 [[package]]
 name = "lavende-python"
-version = "1.0.9"
+version = "1.0.10"
 dependencies = [
  "lavende-core",
  "pyo3",
@@ -1607,7 +1607,7 @@ dependencies = [
 
 [[package]]
 name = "lavende_go"
-version = "1.0.9"
+version = "1.0.10"
 dependencies = [
  "cbindgen",
  "lavende",

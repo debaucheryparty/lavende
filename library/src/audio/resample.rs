@@ -1,13 +1,13 @@
 pub mod sinc {
     use crate::audio::buffer::PooledBuffer;
-    use std::collections::VecDeque;
     pub struct SincResampler {
         ratio: f32,
         index: f32,
         channels: usize,
         taps: usize,
         table: Vec<f32>,
-        buffer: Vec<VecDeque<f32>>,
+        buffer: Vec<f32>,
+        head: usize,
     }
     impl SincResampler {
         pub fn new(source_rate: u32, target_rate: u32, channels: usize) -> Self {
@@ -30,7 +30,8 @@ pub mod sinc {
                 channels,
                 taps,
                 table,
-                buffer: vec![VecDeque::from(vec![0.0; taps]); channels],
+                buffer: vec![0.0; channels * taps],
+                head: 0,
             }
         }
         fn sinc(x: f32) -> f32 {
@@ -44,14 +45,16 @@ pub mod sinc {
             let num_frames = input.len() / self.channels;
             for frame in 0..num_frames {
                 for ch in 0..self.channels {
-                    self.buffer[ch].pop_front();
-                    self.buffer[ch].push_back(input[frame * self.channels + ch] as f32);
+                    self.buffer[ch * self.taps + self.head] =
+                        input[frame * self.channels + ch] as f32;
                 }
+                self.head = (self.head + 1) % self.taps;
                 while self.index < 1.0 {
                     for ch in 0..self.channels {
                         let mut sum = 0.0;
                         for i in 0..self.taps {
-                            sum += self.buffer[ch][i] * self.table[i];
+                            let buf_idx = ch * self.taps + (self.head + i) % self.taps;
+                            sum += self.buffer[buf_idx] * self.table[i];
                         }
                         output.push(sum.clamp(i16::MIN as f32, i16::MAX as f32) as i16);
                     }
@@ -62,11 +65,8 @@ pub mod sinc {
         }
         pub fn reset(&mut self) {
             self.index = 0.0;
-            for ch in &mut self.buffer {
-                for x in ch {
-                    *x = 0.0;
-                }
-            }
+            self.head = 0;
+            self.buffer.fill(0.0);
         }
         pub fn is_passthrough(&self) -> bool {
             (self.ratio - 1.0).abs() < f32::EPSILON
@@ -90,7 +90,7 @@ pub mod sinc {
             assert_eq!(resampler.channels, 2);
             assert_eq!(resampler.taps, 32);
             assert_eq!(resampler.table.len(), 32);
-            assert_eq!(resampler.buffer.len(), 2);
+            assert_eq!(resampler.buffer.len(), 64);
         }
         #[test]
         fn test_resampler_new_downsample() {
@@ -109,17 +109,11 @@ pub mod sinc {
         fn test_resampler_reset() {
             let mut resampler = SincResampler::new(48000, 44100, 2);
             resampler.index = 0.5;
-            for ch in &mut resampler.buffer {
-                for x in ch.iter_mut() {
-                    *x = 100.0;
-                }
-            }
+            resampler.buffer.fill(100.0);
             resampler.reset();
             assert_eq!(resampler.index, 0.0);
-            for ch in &resampler.buffer {
-                for &x in ch.iter() {
-                    assert_eq!(x, 0.0);
-                }
+            for &x in &resampler.buffer {
+                assert_eq!(x, 0.0);
             }
         }
         #[test]
@@ -181,10 +175,7 @@ pub mod sinc {
         fn test_resampler_multiple_channels() {
             for channels in 1..=8 {
                 let resampler = SincResampler::new(48000, 44100, channels);
-                assert_eq!(resampler.buffer.len(), channels);
-                for ch_buffer in &resampler.buffer {
-                    assert_eq!(ch_buffer.len(), 32);
-                }
+                assert_eq!(resampler.buffer.len(), channels * 32);
             }
         }
     }

@@ -9,9 +9,12 @@ pub mod layer {
         pub volume: f32,
         pub fade: Option<FadeEnvelope>,
         pub finished: bool,
+        read_buf: Vec<u8>,
     }
     impl MixLayer {
         pub fn new(id: String, rx: Receiver<PooledBuffer>, volume: f32) -> Self {
+            let mut read_buf = crate::audio::buffer::get_byte_pool().acquire(1920 * 4);
+            read_buf.resize(1920 * 4, 0);
             Self {
                 id,
                 rx,
@@ -19,6 +22,7 @@ pub mod layer {
                 volume: volume.clamp(0.0, 1.0),
                 fade: None,
                 finished: false,
+                read_buf,
             }
         }
         pub fn fill(&mut self) {
@@ -42,9 +46,13 @@ pub mod layer {
         }
         pub fn accumulate(&mut self, acc: &mut [i32]) {
             let byte_count = acc.len() * 2;
-            if let Some(bytes) = self.ring_buffer.read(byte_count) {
+            if self.read_buf.len() < byte_count {
+                self.read_buf.resize(byte_count, 0);
+            }
+            let read_len = self.ring_buffer.read_into(&mut self.read_buf[..byte_count]);
+            if read_len == byte_count {
                 let samples = unsafe {
-                    std::slice::from_raw_parts(bytes.as_ptr() as *const i16, bytes.len() / 2)
+                    std::slice::from_raw_parts(self.read_buf.as_ptr() as *const i16, byte_count / 2)
                 };
                 for (acc_val, &s) in acc.iter_mut().zip(samples.iter()) {
                     let mut current_vol = self.volume;
@@ -54,6 +62,12 @@ pub mod layer {
                     *acc_val += (s as f32 * current_vol).round() as i32;
                 }
             }
+        }
+    }
+    impl Drop for MixLayer {
+        fn drop(&mut self) {
+            let buf = std::mem::take(&mut self.read_buf);
+            crate::audio::buffer::get_byte_pool().release(buf);
         }
     }
 }
