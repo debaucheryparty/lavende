@@ -151,6 +151,16 @@ impl AudioProcessor {
             let packet = match self.format.next_packet() {
                 Ok(p) => p,
                 Err(Error::IoError(e)) if e.kind() == ErrorKind::UnexpectedEof => break,
+                Err(Error::DecodeError(e)) | Err(Error::Unsupported(e)) => {
+                    self.recoverable_errors += 1;
+                    if self.recoverable_errors == 1 {
+                        debug!("Passthrough packet demux error (recoverable): {e}");
+                    } else if self.recoverable_errors.is_multiple_of(100) {
+                        debug!("Passthrough packet demux error (recoverable, x{}): {e}", self.recoverable_errors);
+                    }
+                    continue;
+                }
+                Err(Error::ResetRequired) => continue,
                 Err(e) => {
                     self.send_error(format!("Packet read error: {e}"));
                     return Err(e);
@@ -255,13 +265,14 @@ impl AudioProcessor {
                         continue;
                     }
                     if self.recoverable_errors == 1 {
-                        warn!("Decode error (recoverable): {e}");
+                        debug!("Decode error (recoverable): {e}");
                     } else if self.recoverable_errors.is_multiple_of(100) {
-                        warn!(
+                        debug!(
                             "Decode error (recoverable, x{}): {e}",
                             self.recoverable_errors
                         );
                     }
+                    continue;
                 }
                 Err(Error::ResetRequired) => {
                     decoder.reset();
