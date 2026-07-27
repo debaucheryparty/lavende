@@ -588,8 +588,8 @@ pub mod http {
                                 cvar.notify_all();
                                 break 'outer;
                             }
-                            let backoff_ms = 100u64 << (retry_count - 1).min(5);
-                            warn!(
+                            let backoff_ms = 500u64 << (retry_count - 1).min(5);
+                            debug!(
                                 "prefetch: fetch failed (retry {}/{}): {} — backing off {}ms",
                                 retry_count, MAX_FETCH_RETRIES, e, backoff_ms
                             );
@@ -655,8 +655,8 @@ pub mod http {
                             cvar.notify_all();
                             break 'outer;
                         }
-                        let backoff_ms = 50u64 << (retry_count - 1).min(5);
-                        warn!(
+                        let backoff_ms = 500u64 << (retry_count - 1).min(5);
+                        debug!(
                             "prefetch: read error (retry {}/{}): {} — backing off {}ms",
                             retry_count, MAX_FETCH_RETRIES, e, backoff_ms
                         );
