@@ -484,26 +484,34 @@ pub mod http {
         ) {
             let mut retry_count: u32 = 0;
             'outer: loop {
-                let seek_target: Option<u64> = {
-                    let (lock, cvar) = &*shared;
-                    let mut state = lock.lock();
-                    loop {
-                        match std::mem::replace(&mut state.command, PrefetchCommand::Continue) {
-                            PrefetchCommand::Stop => break 'outer,
-                            PrefetchCommand::Seek(pos) => {
-                                state.done = false;
-                                state.chunks.clear();
-                                state.buffered = 0;
-                                cvar.notify_all();
-                                break Some(pos);
-                            }
-                            PrefetchCommand::Continue => {
-                                if state.buffered >= MAX_HTTP_BUF_BYTES || state.done {
-                                    cvar.wait_for(&mut state, Duration::from_millis(200));
-                                    continue;
+                let seek_target: Option<u64> = loop {
+                    let command = {
+                        let mut state = shared.0.lock();
+                        std::mem::replace(&mut state.command, PrefetchCommand::Continue)
+                    };
+                    match command {
+                        PrefetchCommand::Stop => break 'outer,
+                        PrefetchCommand::Seek(pos) => {
+                            let (lock, cvar) = &*shared;
+                            let mut state = lock.lock();
+                            state.done = false;
+                            state.chunks.clear();
+                            state.buffered = 0;
+                            cvar.notify_all();
+                            break Some(pos);
+                        }
+                        PrefetchCommand::Continue => {
+                            let should_wait = {
+                                let state = shared.0.lock();
+                                state.buffered >= MAX_HTTP_BUF_BYTES || state.done
+                            };
+                            if should_wait {
+                                if interruptible_sleep(&shared, 200).await {
+                                    break 'outer;
                                 }
-                                break None;
+                                continue;
                             }
+                            break None;
                         }
                     }
                 };
@@ -565,14 +573,19 @@ pub mod http {
                             let msg = e.to_string();
                             if msg.contains("416") {
                                 debug!("prefetch: 416 – reached end of stream");
-                                let (lock, cvar) = &*shared;
-                                let mut state = lock.lock();
-                                state.done = true;
-                                cvar.notify_all();
-                                while state.done
-                                    && matches!(state.command, PrefetchCommand::Continue)
                                 {
-                                    cvar.wait_for(&mut state, Duration::from_millis(200));
+                                    let (lock, cvar) = &*shared;
+                                    let mut state = lock.lock();
+                                    state.done = true;
+                                    cvar.notify_all();
+                                }
+                                while {
+                                    let state = shared.0.lock();
+                                    state.done && matches!(state.command, PrefetchCommand::Continue)
+                                } {
+                                    if interruptible_sleep(&shared, 200).await {
+                                        break 'outer;
+                                    }
                                 }
                                 continue;
                             }
@@ -600,18 +613,18 @@ pub mod http {
                         }
                     }
                 }
-                {
-                    let (lock, cvar) = &*shared;
-                    let mut state = lock.lock();
-                    while state.buffered >= MAX_HTTP_BUF_BYTES
+                while {
+                    let state = shared.0.lock();
+                    state.buffered >= MAX_HTTP_BUF_BYTES
                         && matches!(state.command, PrefetchCommand::Continue)
                         && !state.done
-                    {
-                        cvar.wait_for(&mut state, Duration::from_millis(100));
+                } {
+                    if interruptible_sleep(&shared, 100).await {
+                        break 'outer;
                     }
-                    if !matches!(state.command, PrefetchCommand::Continue) {
-                        continue;
-                    }
+                }
+                if !matches!(shared.0.lock().command, PrefetchCommand::Continue) {
+                    continue;
                 }
                 let res = response.as_mut().unwrap();
                 match res.chunk().await {
@@ -632,12 +645,19 @@ pub mod http {
                         retry_count = 0;
                         let is_eof = total_len.is_none_or(|l| current_pos >= l);
                         if is_eof {
-                            let (lock, cvar) = &*shared;
-                            let mut state = lock.lock();
-                            state.done = true;
-                            cvar.notify_all();
-                            while state.done && matches!(state.command, PrefetchCommand::Continue) {
-                                cvar.wait_for(&mut state, Duration::from_millis(200));
+                            {
+                                let (lock, cvar) = &*shared;
+                                let mut state = lock.lock();
+                                state.done = true;
+                                cvar.notify_all();
+                            }
+                            while {
+                                let state = shared.0.lock();
+                                state.done && matches!(state.command, PrefetchCommand::Continue)
+                            } {
+                                if interruptible_sleep(&shared, 200).await {
+                                    break 'outer;
+                                }
                             }
                         }
                     }
@@ -675,7 +695,6 @@ pub mod http {
     use std::{
         io::{Read, Seek, SeekFrom},
         sync::Arc,
-        thread,
     };
     use symphonia::core::io::MediaSource;
     use tracing::debug;
@@ -705,22 +724,9 @@ pub mod http {
             let shared = Arc::new((Mutex::new(SharedState::new()), Condvar::new()));
             let shared_clone = Arc::clone(&shared);
             let url_clone = url.to_string();
-            thread::Builder::new()
-                .name("http-prefetch".into())
-                .spawn(move || {
-                    let rt = tokio::runtime::Builder::new_current_thread()
-                        .enable_all()
-                        .build()
-                        .unwrap();
-                    rt.block_on(prefetch_loop(
-                        shared_clone,
-                        client,
-                        url_clone,
-                        0,
-                        Some(response),
-                        len,
-                    ));
-                })?;
+            tokio::spawn(async move {
+                prefetch_loop(shared_clone, client, url_clone, 0, Some(response), len).await;
+            });
             Ok(Self {
                 pos: 0,
                 len,
