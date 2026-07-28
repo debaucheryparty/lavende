@@ -30,7 +30,7 @@ pub mod sinc {
                 channels,
                 taps,
                 table,
-                buffer: vec![0.0; channels * taps],
+                buffer: vec![0.0; channels * taps * 2],
                 head: 0,
             }
         }
@@ -43,18 +43,27 @@ pub mod sinc {
         }
         pub fn process(&mut self, input: &[i16], output: &mut PooledBuffer) {
             let num_frames = input.len() / self.channels;
+            let taps = self.taps;
+            let est_output = ((num_frames as f32 / self.ratio) as usize + 2) * self.channels;
+            output.reserve(est_output);
             for frame in 0..num_frames {
                 for ch in 0..self.channels {
-                    self.buffer[ch * self.taps + self.head] =
-                        input[frame * self.channels + ch] as f32;
+                    let val = input[frame * self.channels + ch] as f32;
+                    let base = ch * taps * 2;
+                    self.buffer[base + self.head] = val;
+                    self.buffer[base + self.head + taps] = val;
                 }
-                self.head = (self.head + 1) % self.taps;
+                self.head += 1;
+                if self.head >= taps {
+                    self.head = 0;
+                }
                 while self.index < 1.0 {
                     for ch in 0..self.channels {
-                        let mut sum = 0.0;
-                        for i in 0..self.taps {
-                            let buf_idx = ch * self.taps + (self.head + i) % self.taps;
-                            sum += self.buffer[buf_idx] * self.table[i];
+                        let base = ch * taps * 2 + self.head;
+                        let buf = &self.buffer[base..base + taps];
+                        let mut sum = 0.0f32;
+                        for i in 0..taps {
+                            sum += buf[i] * self.table[i];
                         }
                         output.push(sum.clamp(i16::MIN as f32, i16::MAX as f32) as i16);
                     }
@@ -90,7 +99,7 @@ pub mod sinc {
             assert_eq!(resampler.channels, 2);
             assert_eq!(resampler.taps, 32);
             assert_eq!(resampler.table.len(), 32);
-            assert_eq!(resampler.buffer.len(), 64);
+            assert_eq!(resampler.buffer.len(), 128);
         }
         #[test]
         fn test_resampler_new_downsample() {
@@ -175,7 +184,7 @@ pub mod sinc {
         fn test_resampler_multiple_channels() {
             for channels in 1..=8 {
                 let resampler = SincResampler::new(48000, 44100, channels);
-                assert_eq!(resampler.buffer.len(), channels * 32);
+                assert_eq!(resampler.buffer.len(), channels * 64);
             }
         }
     }
@@ -199,6 +208,8 @@ pub mod linear {
         }
         pub fn process(&mut self, input: &[i16], output: &mut PooledBuffer) {
             let num_frames = input.len() / self.channels;
+            let est_output = ((num_frames as f32 / self.ratio) as usize + 2) * self.channels;
+            output.reserve(est_output);
             while self.index < num_frames as f32 {
                 let idx = self.index as usize;
                 let fract = self.index.fract();
@@ -261,6 +272,8 @@ pub mod hermite {
         pub fn process(&mut self, input: &[i16], output: &mut PooledBuffer) {
             let num_frames = input.len() / self.channels;
             let num_frames_f = num_frames as f32;
+            let est_output = ((num_frames_f / self.ratio) as usize + 2) * self.channels;
+            output.reserve(est_output);
             while self.index < num_frames_f {
                 let idx = self.index as usize;
                 let t = self.index.fract();

@@ -3,6 +3,7 @@ pub mod opus_decoder {
     use audiopus::{
         Channels, MutSignals, SampleRate, coder::Decoder as OpusDecoder, packet::Packet,
     };
+    use std::sync::Mutex;
     use symphonia::core::{
         audio::{AsAudioBufferRef, AudioBuffer, AudioBufferRef, Layout, Signal, SignalSpec},
         codecs::{
@@ -16,11 +17,10 @@ pub mod opus_decoder {
     pub struct OpusCodecDecoder {
         params: CodecParameters,
         channels: usize,
-        decoder: OpusDecoder,
+        decoder: Mutex<OpusDecoder>,
         buf: AudioBuffer<i16>,
         pcm: Vec<i16>,
     }
-    unsafe impl Sync for OpusCodecDecoder {}
     #[inline]
     fn opus_channels(n: usize) -> Channels {
         if n == 1 {
@@ -55,7 +55,7 @@ pub mod opus_decoder {
             Ok(Self {
                 params: params.clone(),
                 channels,
-                decoder,
+                decoder: Mutex::new(decoder),
                 buf,
                 pcm,
             })
@@ -70,7 +70,7 @@ pub mod opus_decoder {
         }
         fn reset(&mut self) {
             match OpusDecoder::new(SampleRate::Hz48000, opus_channels(self.channels)) {
-                Ok(dec) => self.decoder = dec,
+                Ok(dec) => *self.decoder.get_mut().unwrap() = dec,
                 Err(e) => tracing::warn!("opus decoder reset failed: {e}"),
             }
         }
@@ -80,6 +80,8 @@ pub mod opus_decoder {
         fn decode(&mut self, packet: &SymphPacket) -> Result<AudioBufferRef<'_>> {
             let n = self
                 .decoder
+                .get_mut()
+                .unwrap()
                 .decode(
                     Packet::try_from(packet.data.as_ref()).ok(),
                     MutSignals::try_from(self.pcm.as_mut_slice())

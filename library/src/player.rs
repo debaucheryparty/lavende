@@ -6,7 +6,7 @@ use crate::audio::{
     filters::FilterChain,
     playback::{TrackHandle, handle::PlaybackState as PlayState},
 };
-use crate::common::types::{ChannelId, GuildId, SessionId, Shared, SyncShared, UserId};
+use crate::common::types::{ChannelId, GuildId, SessionId, SyncShared, UserId};
 use crate::events::EventSender;
 use crate::gateway::{VoiceGateway, VoiceGatewayConfig};
 use serde::{Deserialize, Serialize};

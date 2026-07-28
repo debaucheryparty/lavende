@@ -16,11 +16,13 @@ pub mod controller {
         pub fade: FadeEffect,
         pub crossfade: CrossfadeController,
         pending_pcm: Vec<i16>,
+        pending_pcm_pos: usize,
         decoder_done: bool,
         frame_rx: Receiver<AudioFrame>,
         frame_tx: Option<Sender<AudioFrame>>,
         latest_opus: Option<Vec<u8>>,
-        opus_decoder: audiopus::coder::Decoder,
+        opus_decoder: Option<audiopus::coder::Decoder>,
+        opus_pcm: Vec<i16>,
     }
     impl FlowController {
         pub fn new(
@@ -53,16 +55,36 @@ pub mod controller {
                 fade: FadeEffect::new(1.0, channels),
                 crossfade: CrossfadeController::new(sample_rate, channels),
                 pending_pcm: Vec::with_capacity(FRAME_SIZE_SAMPLES * 2),
+                pending_pcm_pos: 0,
                 decoder_done: false,
                 frame_rx,
                 frame_tx,
                 latest_opus: None,
-                opus_decoder: audiopus::coder::Decoder::new(
-                    audiopus::SampleRate::Hz48000,
-                    audiopus::Channels::Stereo,
-                )
-                .expect("Failed to create Opus decoder"),
+                opus_decoder: None,
+                opus_pcm: vec![0i16; 1920 * 2],
             }
+        }
+        #[inline]
+        fn pending_len(&self) -> usize {
+            self.pending_pcm.len() - self.pending_pcm_pos
+        }
+        #[inline]
+        fn compact_pending(&mut self) {
+            if self.pending_pcm_pos > 0 {
+                self.pending_pcm.copy_within(self.pending_pcm_pos.., 0);
+                self.pending_pcm.truncate(self.pending_len());
+                self.pending_pcm_pos = 0;
+            }
+        }
+        fn take_frame(&mut self) -> PooledBuffer {
+            let end = self.pending_pcm_pos + FRAME_SIZE_SAMPLES;
+            let mut frame = acquire_buffer(FRAME_SIZE_SAMPLES);
+            frame.extend_from_slice(&self.pending_pcm[self.pending_pcm_pos..end]);
+            self.pending_pcm_pos = end;
+            if self.pending_pcm_pos > self.pending_pcm.len() / 2 {
+                self.compact_pending();
+            }
+            frame
         }
         pub fn run(&mut self) {
             while let Ok(frame_data) = self.frame_rx.recv() {
@@ -70,12 +92,13 @@ pub mod controller {
                     AudioFrame::Pcm(pooled) => {
                         if pooled.is_empty() {
                             self.pending_pcm.clear();
+                            self.pending_pcm_pos = 0;
                             continue;
                         }
+                        self.compact_pending();
                         self.pending_pcm.extend_from_slice(&pooled);
-                        while self.pending_pcm.len() >= FRAME_SIZE_SAMPLES {
-                            let mut frame = acquire_buffer(FRAME_SIZE_SAMPLES);
-                            frame.extend(self.pending_pcm.drain(..FRAME_SIZE_SAMPLES));
+                        while self.pending_len() >= FRAME_SIZE_SAMPLES {
+                            let mut frame = self.take_frame();
                             self.process_frame(&mut frame);
                             if self
                                 .frame_tx
@@ -98,34 +121,43 @@ pub mod controller {
         }
         pub fn try_pop_frame(&mut self) -> Result<Option<PooledBuffer>, AudioError> {
             if !self.decoder_done {
-                while self.pending_pcm.len() < FRAME_SIZE_SAMPLES {
+                while self.pending_len() < FRAME_SIZE_SAMPLES {
                     match self
                         .frame_rx
                         .recv_timeout(std::time::Duration::from_millis(5))
                     {
                         Ok(AudioFrame::Pcm(chunk)) if chunk.is_empty() => {
                             self.pending_pcm.clear();
+                            self.pending_pcm_pos = 0;
                             self.decoder_done = false;
                         }
                         Ok(AudioFrame::Pcm(chunk)) => {
+                            self.compact_pending();
                             self.pending_pcm.extend_from_slice(&chunk);
                             crate::audio::buffer::release_buffer(chunk);
                         }
                         Ok(AudioFrame::Opus(packet)) => {
-                            self.latest_opus = Some(packet.clone());
-                            let mut pcm = vec![0i16; 1920 * 2];
                             let opus_packet =
                                 audiopus::packet::Packet::try_from(packet.as_slice()).ok();
                             if let Ok(mut_signals) =
-                                audiopus::MutSignals::try_from(pcm.as_mut_slice())
+                                audiopus::MutSignals::try_from(self.opus_pcm.as_mut_slice())
                             {
+                                let decoder = self.opus_decoder.get_or_insert_with(|| {
+                                    audiopus::coder::Decoder::new(
+                                        audiopus::SampleRate::Hz48000,
+                                        audiopus::Channels::Stereo,
+                                    )
+                                    .expect("Failed to create Opus decoder")
+                                });
                                 if let Ok(decoded_samples) =
-                                    self.opus_decoder.decode(opus_packet, mut_signals, false)
+                                    decoder.decode(opus_packet, mut_signals, false)
                                 {
-                                    pcm.truncate(decoded_samples * 2);
-                                    self.pending_pcm.extend_from_slice(&pcm);
+                                    self.compact_pending();
+                                    self.pending_pcm
+                                        .extend_from_slice(&self.opus_pcm[..decoded_samples * 2]);
                                 }
                             }
+                            self.latest_opus = Some(packet);
                         }
                         Err(flume::RecvTimeoutError::Timeout) => break,
                         Err(flume::RecvTimeoutError::Disconnected) => {
@@ -135,16 +167,19 @@ pub mod controller {
                     }
                 }
             }
-            if self.pending_pcm.len() >= FRAME_SIZE_SAMPLES {
-                let mut frame = acquire_buffer(FRAME_SIZE_SAMPLES);
-                frame.extend(self.pending_pcm.drain(..FRAME_SIZE_SAMPLES));
+            if self.pending_len() >= FRAME_SIZE_SAMPLES {
+                let mut frame = self.take_frame();
                 self.process_frame(&mut frame);
                 Ok(Some(frame))
             } else if self.decoder_done {
-                if !self.pending_pcm.is_empty() {
+                if self.pending_len() > 0 {
+                    self.compact_pending();
+                    let remaining = self.pending_pcm.len();
                     let mut frame = acquire_buffer(FRAME_SIZE_SAMPLES);
-                    frame.extend(self.pending_pcm.drain(..));
+                    frame.extend_from_slice(&self.pending_pcm[..remaining]);
                     frame.resize(FRAME_SIZE_SAMPLES, 0);
+                    self.pending_pcm.clear();
+                    self.pending_pcm_pos = 0;
                     self.process_frame(&mut frame);
                     Ok(Some(frame))
                 } else {
@@ -173,8 +208,10 @@ pub mod controller {
                     AudioFrame::Pcm(chunk) => {
                         if chunk.is_empty() {
                             self.pending_pcm.clear();
+                            self.pending_pcm_pos = 0;
                             self.decoder_done = false;
                         } else {
+                            self.compact_pending();
                             self.pending_pcm.extend_from_slice(&chunk);
                             crate::audio::buffer::release_buffer(chunk);
                         }

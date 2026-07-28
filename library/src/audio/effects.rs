@@ -199,6 +199,14 @@ pub mod tape {
             for &s in frame.iter() {
                 self.input_buffer.push(s as f32 / 32767.0);
             }
+            let max_buf_samples = self.sample_rate as usize * self.channels * 5;
+            if self.input_buffer.len() > max_buf_samples {
+                let drain_to = (self.read_pos.floor() as usize / self.channels) * self.channels;
+                if drain_to > 0 {
+                    self.input_buffer.drain(0..drain_to);
+                    self.read_pos = (self.read_pos - drain_to as f64).max(0.0);
+                }
+            }
             let mut out_idx = 0;
             let sample_duration_ms = 1000.0 / self.sample_rate as f32;
             while out_idx < frame.len() {
@@ -224,6 +232,8 @@ pub mod tape {
                     break;
                 }
                 let frac = ((self.read_pos - i_pos as f64) / channels as f64) as f32;
+                let frac2 = frac * frac;
+                let frac3 = frac2 * frac;
                 for c in 0..channels {
                     let p0 = if i_pos >= channels {
                         self.input_buffer[i_pos - channels + c]
@@ -236,10 +246,10 @@ pub mod tape {
                     let val = 0.5
                         * (2.0 * p1
                             + (-p0 + p2) * frac
-                            + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * frac * frac
-                            + (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * frac * frac * frac);
+                            + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * frac2
+                            + (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * frac3);
                     if out_idx < frame.len() {
-                        frame[out_idx] = (val * 32767.0).clamp(-32768.0, 32767.0).round() as i16;
+                        frame[out_idx] = (val * 32767.0).clamp(-32768.0, 32767.0) as i16;
                         out_idx += 1;
                     }
                 }
@@ -357,7 +367,7 @@ pub mod fade {
             let mut gain = gain_start;
             for s in frame.iter_mut() {
                 let out = (*s as f32 * gain).clamp(INT16_MIN_F, INT16_MAX_F);
-                *s = out.round() as i16;
+                *s = out as i16;
                 gain += step;
             }
         }
@@ -379,6 +389,7 @@ pub mod crossfade {
         next_rx: Option<Receiver<PooledBuffer>>,
         active_fade: Option<CrossfadeState>,
         target_buffer_bytes: usize,
+        read_buf: Vec<u8>,
     }
     struct CrossfadeState {
         duration_ms: u64,
@@ -396,6 +407,7 @@ pub mod crossfade {
                 next_rx: None,
                 active_fade: None,
                 target_buffer_bytes: 0,
+                read_buf: Vec::new(),
             }
         }
         pub fn prepare(&mut self, rx: Receiver<PooledBuffer>, duration_ms: u64) {
@@ -449,15 +461,18 @@ pub mod crossfade {
             };
             let sample_count = frame.len();
             let byte_count = sample_count * 2;
-            let next_bytes = if let Some(ring) = &mut self.ring_buffer {
-                ring.read(byte_count)
+            if self.read_buf.len() < byte_count {
+                self.read_buf.resize(byte_count, 0);
+            }
+            let read_len = if let Some(ring) = &mut self.ring_buffer {
+                ring.read_into(&mut self.read_buf[..byte_count])
             } else {
                 return false;
             };
-            let Some(next_bytes) = next_bytes else {
+            if read_len < byte_count {
                 return false;
-            };
-            let next_samples_raw = crate::audio::buffer::as_i16_slice(&next_bytes);
+            }
+            let next_samples_raw = crate::audio::buffer::as_i16_slice(&self.read_buf[..byte_count]);
             let chunk_ms =
                 (sample_count as f32 / self.channels as f32 / self.sample_rate as f32) * 1000.0;
             let t_start = (elapsed / duration).min(1.0);

@@ -156,7 +156,10 @@ impl AudioProcessor {
                     if self.recoverable_errors == 1 {
                         debug!("Passthrough packet demux error (recoverable): {e}");
                     } else if self.recoverable_errors.is_multiple_of(100) {
-                        debug!("Passthrough packet demux error (recoverable, x{}): {e}", self.recoverable_errors);
+                        debug!(
+                            "Passthrough packet demux error (recoverable, x{}): {e}",
+                            self.recoverable_errors
+                        );
                     }
                     continue;
                 }
@@ -234,9 +237,8 @@ impl AudioProcessor {
                                 packet_count,
                             )
                         };
-                        let capacity = (pcm_data.len() as f64 * TARGET_SAMPLE_RATE as f64
-                            / source_rate as f64)
-                            .ceil() as usize
+                        let capacity = pcm_data.len() * TARGET_SAMPLE_RATE as usize
+                            / source_rate as usize
                             + 32;
                         let mut resampled = crate::audio::buffer::acquire_buffer(capacity);
                         if resampler.is_passthrough() {

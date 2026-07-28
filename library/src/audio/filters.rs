@@ -62,19 +62,21 @@ pub mod biquad {
         }
     }
     impl BiquadState {
+        #[inline]
         pub fn process(&mut self, input: f64, coeffs: &BiquadCoeffs) -> f64 {
             let output = coeffs.b0 * input + coeffs.b1 * self.x1 + coeffs.b2 * self.x2
                 - coeffs.a1 * self.y1
                 - coeffs.a2 * self.y2;
-            if !output.is_finite() {
-                self.reset();
-                return 0.0;
-            }
             self.x2 = self.x1;
             self.x1 = input;
             self.y2 = self.y1;
             self.y1 = output;
-            output
+            if output.is_finite() {
+                output
+            } else {
+                self.reset();
+                0.0
+            }
         }
         pub fn reset(&mut self) {
             self.x1 = 0.0;
@@ -277,8 +279,8 @@ pub mod compressor {
         fn process(&mut self, samples: &mut [i16]) {
             let makeup_gain = db_to_gain(self.makeup_gain);
             for chunk in samples.chunks_exact_mut(2) {
-                let left_in = chunk[0] as f32 / 32768.0;
-                let right_in = chunk[1] as f32 / 32768.0;
+                let left_in = chunk[0] as f32 / 32767.0;
+                let right_in = chunk[1] as f32 / 32767.0;
                 let abs_sample = left_in.abs().max(right_in.abs());
                 if abs_sample > self.envelope {
                     self.envelope = self.attack_coef * (self.envelope - abs_sample) + abs_sample;
@@ -292,9 +294,9 @@ pub mod compressor {
                 }
                 let gain = db_to_gain(reduction_db) * makeup_gain;
                 chunk[0] =
-                    (left_in * gain * 32768.0).clamp(i16::MIN as f32, i16::MAX as f32) as i16;
+                    (left_in * gain * 32767.0).clamp(i16::MIN as f32, i16::MAX as f32) as i16;
                 chunk[1] =
-                    (right_in * gain * 32768.0).clamp(i16::MIN as f32, i16::MAX as f32) as i16;
+                    (right_in * gain * 32767.0).clamp(i16::MIN as f32, i16::MAX as f32) as i16;
             }
         }
         fn is_enabled(&self) -> bool {
@@ -340,7 +342,6 @@ pub mod delay_line {
 }
 pub mod distortion {
     use super::AudioFilter;
-    use crate::audio::constants::INT16_NORM_F64;
     pub struct DistortionFilter {
         sin_offset: f32,
         sin_scale: f32,
@@ -381,29 +382,25 @@ pub mod distortion {
             for frame in 0..num_frames {
                 let offset_idx = frame * 2;
                 for ch in 0..2 {
-                    let sample = samples[offset_idx + ch] as f64;
-                    let normalized = sample / INT16_NORM_F64;
-                    let mut distorted = 0.0f64;
+                    let sample = samples[offset_idx + ch] as f32;
+                    let normalized = sample / 32768.0;
+                    let mut distorted = 0.0f32;
                     if self.sin_scale != 0.0 {
-                        distorted +=
-                            (normalized * self.sin_scale as f64 + self.sin_offset as f64).sin();
+                        distorted += (normalized * self.sin_scale + self.sin_offset).sin();
                     }
                     if self.cos_scale != 0.0 {
-                        distorted +=
-                            (normalized * self.cos_scale as f64 + self.cos_offset as f64).cos();
+                        distorted += (normalized * self.cos_scale + self.cos_offset).cos();
                     }
                     if self.tan_scale != 0.0 {
-                        let tan_input =
-                            (normalized * self.tan_scale as f64 + self.tan_offset as f64).clamp(
-                                -std::f64::consts::FRAC_PI_2 + 0.01,
-                                std::f64::consts::FRAC_PI_2 - 0.01,
-                            );
+                        let tan_input = (normalized * self.tan_scale + self.tan_offset).clamp(
+                            -std::f32::consts::FRAC_PI_2 + 0.01,
+                            std::f32::consts::FRAC_PI_2 - 0.01,
+                        );
                         distorted += tan_input.tan();
                     }
-                    distorted =
-                        (distorted * self.scale as f64 + self.offset as f64) * INT16_NORM_F64;
+                    distorted = (distorted * self.scale + self.offset) * 32768.0;
                     samples[offset_idx + ch] =
-                        distorted.clamp(i16::MIN as f64, i16::MAX as f64) as i16;
+                        distorted.clamp(i16::MIN as f32, i16::MAX as f32) as i16;
                 }
             }
         }
@@ -423,11 +420,11 @@ pub mod distortion {
 pub mod echo {
     use super::AudioFilter;
     use crate::audio::constants::TARGET_SAMPLE_RATE;
-    use std::collections::VecDeque;
     pub struct EchoFilter {
         echo_length: f32,
         decay: f32,
-        buffer: VecDeque<i16>,
+        buffer: Vec<i16>,
+        write_pos: usize,
         delay_samples: usize,
     }
     impl EchoFilter {
@@ -436,12 +433,11 @@ pub mod echo {
             let decay = decay.clamp(0.0, 1.0);
             let frames = (TARGET_SAMPLE_RATE as f32 * length) as usize;
             let samples = frames * 2;
-            let mut buffer = VecDeque::with_capacity(samples);
-            buffer.extend(std::iter::repeat_n(0, samples));
             Self {
                 echo_length: length,
                 decay,
-                buffer,
+                buffer: vec![0i16; samples],
+                write_pos: 0,
                 delay_samples: samples,
             }
         }
@@ -452,20 +448,23 @@ pub mod echo {
                 return;
             }
             for sample in samples.iter_mut() {
-                let delayed = self.buffer.pop_front().unwrap_or(0);
+                let delayed = self.buffer[self.write_pos];
                 let mixed = (*sample as f32) + (delayed as f32 * self.decay);
                 let out = mixed.clamp(i16::MIN as f32, i16::MAX as f32) as i16;
                 *sample = out;
-                self.buffer.push_back(out);
+                self.buffer[self.write_pos] = out;
+                self.write_pos += 1;
+                if self.write_pos >= self.delay_samples {
+                    self.write_pos = 0;
+                }
             }
         }
         fn is_enabled(&self) -> bool {
             self.echo_length > 0.0 && self.decay > 0.0
         }
         fn reset(&mut self) {
-            self.buffer.clear();
-            self.buffer
-                .extend(std::iter::repeat_n(0, self.delay_samples));
+            self.buffer.fill(0);
+            self.write_pos = 0;
         }
     }
 }
@@ -735,24 +734,7 @@ pub mod high_pass {
             }
             let fs = TARGET_SAMPLE_RATE as f64;
             let fc = self.cutoff_frequency as f64;
-            let q = 0.7071067811865475;
-            let w0 = 2.0 * std::f64::consts::PI * (fc / fs);
-            let cos_w0 = w0.cos();
-            let sin_w0 = w0.sin();
-            let alpha = sin_w0 / (2.0 * q);
-            let a0 = 1.0 + alpha;
-            let a1 = -2.0 * cos_w0;
-            let a2 = 1.0 - alpha;
-            let b0 = (1.0 + cos_w0) / 2.0;
-            let b1 = -(1.0 + cos_w0);
-            let b2 = (1.0 + cos_w0) / 2.0;
-            self.coeffs = Some(BiquadCoeffs {
-                b0: b0 / a0,
-                b1: b1 / a0,
-                b2: b2 / a0,
-                a1: a1 / a0,
-                a2: a2 / a0,
-            });
+            self.coeffs = Some(BiquadCoeffs::highpass(fc, 0.7071067811865475, fs));
         }
     }
     impl AudioFilter for HighPassFilter {
@@ -980,14 +962,14 @@ pub mod low_pass {
     use super::AudioFilter;
     pub struct LowPassFilter {
         smoothing: f32,
-        smoothing_factor: f64,
-        prev_left: f64,
-        prev_right: f64,
+        smoothing_factor: f32,
+        prev_left: f32,
+        prev_right: f32,
     }
     impl LowPassFilter {
         pub fn new(smoothing: f32) -> Self {
             let smoothing_factor = if smoothing > 1.0 {
-                1.0 / smoothing as f64
+                1.0 / smoothing
             } else {
                 0.0
             };
@@ -1007,14 +989,14 @@ pub mod low_pass {
             let num_frames = samples.len() / 2;
             for frame in 0..num_frames {
                 let offset = frame * 2;
-                let left = samples[offset] as f64;
+                let left = samples[offset] as f32;
                 let new_left = self.prev_left + self.smoothing_factor * (left - self.prev_left);
                 self.prev_left = new_left;
-                samples[offset] = new_left.clamp(i16::MIN as f64, i16::MAX as f64) as i16;
-                let right = samples[offset + 1] as f64;
+                samples[offset] = new_left.clamp(i16::MIN as f32, i16::MAX as f32) as i16;
+                let right = samples[offset + 1] as f32;
                 let new_right = self.prev_right + self.smoothing_factor * (right - self.prev_right);
                 self.prev_right = new_right;
-                samples[offset + 1] = new_right.clamp(i16::MIN as f64, i16::MAX as f64) as i16;
+                samples[offset + 1] = new_right.clamp(i16::MIN as f32, i16::MAX as f32) as i16;
             }
         }
         fn is_enabled(&self) -> bool {
@@ -1216,10 +1198,10 @@ pub mod phaser {
                 let right_lfo_val = (self.right_lfo.get_value() as f32 + 1.0) / 2.0;
                 let current_left_freq = self.min_frequency + sweep_range * left_lfo_val;
                 let current_right_freq = self.min_frequency + sweep_range * right_lfo_val;
-                let tan_left = (std::f32::consts::PI * current_left_freq / fs).tan();
-                let a_left = (1.0 - tan_left) / (1.0 + tan_left);
-                let tan_right = (std::f32::consts::PI * current_right_freq / fs).tan();
-                let a_right = (1.0 - tan_right) / (1.0 + tan_right);
+                let wc_left = std::f32::consts::PI * current_left_freq / fs;
+                let a_left = (1.0 - wc_left) / (1.0 + wc_left);
+                let wc_right = std::f32::consts::PI * current_right_freq / fs;
+                let a_right = (1.0 - wc_right) / (1.0 + wc_right);
                 let mut wet_left = left_sample + self.last_left_feedback * self.feedback;
                 for j in 0..self.stages {
                     self.left_filters[j].set_coefficient(a_left);
@@ -1392,34 +1374,7 @@ pub mod phonograph {
             let x2 = x * x;
             (x * (27.0 + x2)) / (27.0 + 9.0 * x2)
         }
-        fn make_highpass(fc: f64, q: f64, fs: f64) -> BiquadCoeffs {
-            let w0 = 2.0 * std::f64::consts::PI * (fc / fs);
-            let cos_w0 = w0.cos();
-            let sin_w0 = w0.sin();
-            let alpha = sin_w0 / (2.0 * q);
-            let a0 = 1.0 + alpha;
-            BiquadCoeffs {
-                b0: ((1.0 + cos_w0) / 2.0) / a0,
-                b1: (-(1.0 + cos_w0)) / a0,
-                b2: ((1.0 + cos_w0) / 2.0) / a0,
-                a1: (-2.0 * cos_w0) / a0,
-                a2: (1.0 - alpha) / a0,
-            }
-        }
-        fn make_lowpass(fc: f64, q: f64, fs: f64) -> BiquadCoeffs {
-            let w0 = 2.0 * std::f64::consts::PI * (fc / fs);
-            let cos_w0 = w0.cos();
-            let sin_w0 = w0.sin();
-            let alpha = sin_w0 / (2.0 * q);
-            let a0 = 1.0 + alpha;
-            BiquadCoeffs {
-                b0: ((1.0 - cos_w0) / 2.0) / a0,
-                b1: (1.0 - cos_w0) / a0,
-                b2: ((1.0 - cos_w0) / 2.0) / a0,
-                a1: (-2.0 * cos_w0) / a0,
-                a2: (1.0 - alpha) / a0,
-            }
-        }
+
         fn make_peaking(fc: f64, q: f64, gain_db: f64, fs: f64) -> BiquadCoeffs {
             let a = 10f64.powf(gain_db / 40.0);
             let w0 = 2.0 * std::f64::consts::PI * (fc / fs);
@@ -1459,14 +1414,14 @@ pub mod phonograph {
         fn recompute_filters(&mut self) {
             let fs = TARGET_SAMPLE_RATE as f64;
             let q = std::f64::consts::FRAC_1_SQRT_2;
-            self.hp1_coeffs = Self::make_highpass(260.0, q, fs);
-            self.hp2_coeffs = Self::make_highpass(260.0, q, fs);
-            self.lp1_coeffs = Self::make_lowpass(3300.0, q, fs);
-            self.lp2_coeffs = Self::make_lowpass(3300.0, q, fs);
+            self.hp1_coeffs = BiquadCoeffs::highpass(260.0, q, fs);
+            self.hp2_coeffs = BiquadCoeffs::highpass(260.0, q, fs);
+            self.lp1_coeffs = BiquadCoeffs::lowpass(3300.0, q, fs);
+            self.lp2_coeffs = BiquadCoeffs::lowpass(3300.0, q, fs);
             self.peak1_coeffs = Self::make_peaking(950.0, 1.1, 7.0, fs);
             self.peak2_coeffs = Self::make_peaking(2400.0, 1.6, 3.5, fs);
-            self.hiss_hp_coeffs = Self::make_highpass(1800.0, q, fs);
-            self.hiss_lp_coeffs = Self::make_lowpass(6500.0, q, fs);
+            self.hiss_hp_coeffs = BiquadCoeffs::highpass(1800.0, q, fs);
+            self.hiss_lp_coeffs = BiquadCoeffs::lowpass(6500.0, q, fs);
         }
     }
     impl AudioFilter for PhonographFilter {
@@ -1801,15 +1756,15 @@ pub mod rotation {
             let num_frames = samples.len() / 2;
             for frame in 0..num_frames {
                 let offset = frame * 2;
-                let lfo_value = self.lfo.get_value();
-                let left_factor = (1.0 - lfo_value) / 2.0;
-                let right_factor = (1.0 + lfo_value) / 2.0;
-                let left = samples[offset] as f64;
-                let right = samples[offset + 1] as f64;
+                let lfo_value = self.lfo.get_value() as f32;
+                let left_factor = (1.0 - lfo_value) * 0.5;
+                let right_factor = (1.0 + lfo_value) * 0.5;
+                let left = samples[offset] as f32;
+                let right = samples[offset + 1] as f32;
                 let new_left = left * left_factor;
                 let new_right = right * right_factor;
-                samples[offset] = new_left.clamp(i16::MIN as f64, i16::MAX as f64) as i16;
-                samples[offset + 1] = new_right.clamp(i16::MIN as f64, i16::MAX as f64) as i16;
+                samples[offset] = new_left.clamp(i16::MIN as f32, i16::MAX as f32) as i16;
+                samples[offset + 1] = new_right.clamp(i16::MIN as f32, i16::MAX as f32) as i16;
             }
         }
         fn is_enabled(&self) -> bool {
@@ -1923,6 +1878,15 @@ pub mod timescale {
                 return Vec::new();
             }
             self.input_buffer.extend_from_slice(samples);
+            const MAX_TS_INPUT: usize = 48000 * 2 * 10;
+            if self.input_buffer.len() > MAX_TS_INPUT {
+                let excess = self.input_buffer.len() - MAX_TS_INPUT;
+                let aligned = (excess / 2) * 2;
+                if aligned > 0 {
+                    self.input_buffer.drain(0..aligned);
+                    self.position = (self.position - (aligned / 2) as f32).max(0.0);
+                }
+            }
             let num_input_samples = self.input_buffer.len();
             let num_input_frames = num_input_samples / 2;
             if num_input_frames < 4 {
@@ -1993,11 +1957,11 @@ pub mod tremolo {
                 return;
             }
             for chunk in samples.chunks_exact_mut(2) {
-                let multiplier = self.lfo.process();
-                let left = (chunk[0] as f64 * multiplier) as i32;
-                chunk[0] = left.clamp(i16::MIN as i32, i16::MAX as i32) as i16;
-                let right = (chunk[1] as f64 * multiplier) as i32;
-                chunk[1] = right.clamp(i16::MIN as i32, i16::MAX as i32) as i16;
+                let multiplier = self.lfo.process() as f32;
+                let left = chunk[0] as f32 * multiplier;
+                chunk[0] = left.clamp(i16::MIN as f32, i16::MAX as f32) as i16;
+                let right = chunk[1] as f32 * multiplier;
+                chunk[1] = right.clamp(i16::MIN as f32, i16::MAX as f32) as i16;
             }
         }
         fn is_enabled(&self) -> bool {
@@ -2047,13 +2011,11 @@ pub mod vibrato {
                 let left_sample = samples[offset] as f32;
                 self.left_delay.write(left_sample);
                 let delayed_left = self.left_delay.read(delay as f32);
-                samples[offset] =
-                    (delayed_left as i32).clamp(i16::MIN as i32, i16::MAX as i32) as i16;
+                samples[offset] = delayed_left.clamp(i16::MIN as f32, i16::MAX as f32) as i16;
                 let right_sample = samples[offset + 1] as f32;
                 self.right_delay.write(right_sample);
                 let delayed_right = self.right_delay.read(delay as f32);
-                samples[offset + 1] =
-                    (delayed_right as i32).clamp(i16::MIN as i32, i16::MAX as i32) as i16;
+                samples[offset + 1] = delayed_right.clamp(i16::MIN as f32, i16::MAX as f32) as i16;
             }
         }
         fn is_enabled(&self) -> bool {
@@ -2291,9 +2253,6 @@ impl TimescaleBuffer {
         self.len -= out_len;
         true
     }
-    fn len(&self) -> usize {
-        self.len
-    }
     fn clear(&mut self) {
         self.read_pos = 0;
         self.write_pos = 0;
@@ -2489,10 +2448,11 @@ impl FilterChain {
             );
             if f.is_enabled() { Some(f) } else { None }
         });
+        let has_ts = timescale.is_some();
         Self {
             filters,
             timescale,
-            timescale_buffer: TimescaleBuffer::new(MAX_TS_SAMPLES),
+            timescale_buffer: TimescaleBuffer::new(if has_ts { MAX_TS_SAMPLES } else { 0 }),
         }
     }
     pub fn is_active(&self) -> bool {

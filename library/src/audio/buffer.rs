@@ -44,7 +44,6 @@ pub mod pool {
             Vec::with_capacity(aligned)
         }
         fn release(&mut self, mut buf: Vec<u8>) {
-            self.last_activity = Instant::now();
             let size = buf.capacity();
             if !(1024..=10 * 1024 * 1024).contains(&size) {
                 return;
@@ -315,8 +314,8 @@ pub fn cast_to_bytes(v: PooledBuffer) -> Vec<u8> {
     unsafe { Vec::from_raw_parts(v.as_mut_ptr() as *mut u8, v.len() * 2, v.capacity() * 2) }
 }
 pub fn cast_from_bytes(v: Vec<u8>) -> PooledBuffer {
-    debug_assert_eq!(v.len() % 2, 0, "byte buffer length must be even");
-    debug_assert_eq!(v.capacity() % 2, 0, "byte buffer capacity must be even");
+    assert_eq!(v.len() % 2, 0, "byte buffer length must be even");
+    assert_eq!(v.capacity() % 2, 0, "byte buffer capacity must be even");
     let mut v = std::mem::ManuallyDrop::new(v);
     unsafe { Vec::from_raw_parts(v.as_mut_ptr() as *mut i16, v.len() / 2, v.capacity() / 2) }
 }
@@ -326,12 +325,12 @@ pub fn as_byte_slice(v: &[i16]) -> &[u8] {
 }
 #[inline]
 pub fn as_i16_slice(v: &[u8]) -> &[i16] {
-    debug_assert_eq!(
+    assert_eq!(
         v.as_ptr() as usize % std::mem::align_of::<i16>(),
         0,
         "byte slice must be 2-byte aligned for i16 reinterpretation"
     );
-    debug_assert_eq!(v.len() % 2, 0, "byte slice length must be even");
+    assert_eq!(v.len() % 2, 0, "byte slice length must be even");
     unsafe { std::slice::from_raw_parts(v.as_ptr() as *const i16, v.len() / 2) }
 }
 #[inline]

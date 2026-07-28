@@ -675,7 +675,6 @@ pub mod http {
     use std::{
         io::{Read, Seek, SeekFrom},
         sync::Arc,
-        thread,
     };
     use symphonia::core::io::MediaSource;
     use tracing::debug;
@@ -749,18 +748,20 @@ pub mod http {
         fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
             let mut n_read = 0;
             let cache_len = self.initial_cache.len() as u64;
-            
+
             if self.pos < cache_len {
                 let available = (cache_len - self.pos) as usize;
                 let to_read = available.min(buf.len());
-                buf[..to_read].copy_from_slice(&self.initial_cache[self.pos as usize .. self.pos as usize + to_read]);
+                buf[..to_read].copy_from_slice(
+                    &self.initial_cache[self.pos as usize..self.pos as usize + to_read],
+                );
                 self.pos += to_read as u64;
                 n_read += to_read;
                 if n_read == buf.len() {
                     return Ok(n_read);
                 }
             }
-            
+
             let (lock, cvar) = &*self.shared;
             let mut state = lock.lock();
             loop {
@@ -772,21 +773,22 @@ pub mod http {
             if let Some(err) = state.error.take() {
                 return Err(std::io::Error::other(err));
             }
-            
+
             let n = state.drain_into(&mut buf[n_read..]);
             if state.buffered < crate::audio::constants::HTTP_PREFETCH_BUFFER_SIZE {
                 cvar.notify_one();
             }
-            
+
             if self.pos == self.initial_cache.len() as u64 {
                 const MAX_CACHE: usize = 256 * 1024;
                 let space_left = MAX_CACHE.saturating_sub(self.initial_cache.len());
                 if space_left > 0 {
                     let to_append = n.min(space_left);
-                    self.initial_cache.extend_from_slice(&buf[n_read .. n_read + to_append]);
+                    self.initial_cache
+                        .extend_from_slice(&buf[n_read..n_read + to_append]);
                 }
             }
-            
+
             self.pos += n as u64;
             Ok(n_read + n)
         }
@@ -809,25 +811,25 @@ pub mod http {
             if new_pos == self.pos {
                 return Ok(self.pos);
             }
-            
+
             if new_pos <= self.initial_cache.len() as u64 {
                 debug!("HttpSource: initial-cache seek {} → {}", self.pos, new_pos);
                 self.pos = new_pos;
                 return Ok(self.pos);
             }
-            
+
             let (lock, cvar) = &*self.shared;
             let mut state = lock.lock();
             let prefetch_start = self.pos.max(self.initial_cache.len() as u64);
             let skip_amount = new_pos.saturating_sub(prefetch_start);
-            
+
             if skip_amount > 0 && skip_amount <= state.buffered as u64 {
                 debug!("HttpSource: in-memory skip {} bytes", skip_amount);
                 state.skip(skip_amount as usize);
                 self.pos = new_pos;
                 return Ok(self.pos);
             }
-            
+
             debug!("HttpSource: hard seek {} → {}", self.pos, new_pos);
             state.chunks.clear();
             state.buffered = 0;

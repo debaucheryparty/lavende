@@ -27,9 +27,7 @@ pub mod layer {
         }
         pub fn fill(&mut self) {
             while let Ok(pooled) = self.rx.try_recv() {
-                let bytes = unsafe {
-                    std::slice::from_raw_parts(pooled.as_ptr() as *const u8, pooled.len() * 2)
-                };
+                let bytes = crate::audio::buffer::as_byte_slice(&pooled);
                 self.ring_buffer.write(bytes);
                 crate::audio::buffer::release_buffer(pooled);
             }
@@ -51,15 +49,13 @@ pub mod layer {
             }
             let read_len = self.ring_buffer.read_into(&mut self.read_buf[..byte_count]);
             if read_len == byte_count {
-                let samples = unsafe {
-                    std::slice::from_raw_parts(self.read_buf.as_ptr() as *const i16, byte_count / 2)
-                };
+                let samples = crate::audio::buffer::as_i16_slice(&self.read_buf[..byte_count]);
                 for (acc_val, &s) in acc.iter_mut().zip(samples.iter()) {
                     let mut current_vol = self.volume;
                     if let Some(fade) = &mut self.fade {
                         current_vol *= fade.current_vol(1);
                     }
-                    *acc_val += (s as f32 * current_vol).round() as i32;
+                    *acc_val += (s as f32 * current_vol) as i32;
                 }
             }
         }
@@ -160,7 +156,6 @@ pub mod mixer {
         mix_buf: Vec<i32>,
         pub audio_mixer: AudioMixer,
         opus_passthrough_track: Option<usize>,
-        final_pcm_buf: Vec<i16>,
         pub stuck_detector: Arc<StuckDetector>,
     }
     pub struct FadeEnvelope {
@@ -168,25 +163,39 @@ pub mod mixer {
         pub target_vol: f32,
         pub samples_total: usize,
         pub samples_passed: usize,
+        step: f32,
+        current: f32,
     }
     impl FadeEnvelope {
         pub fn new(start_vol: f32, target_vol: f32, duration_ms: u64, sample_rate: u32) -> Self {
             let samples_total = ((duration_ms as f64 / 1000.0) * sample_rate as f64) as usize;
+            let step = if samples_total > 0 {
+                (target_vol - start_vol) / samples_total as f32
+            } else {
+                0.0
+            };
             Self {
                 start_vol,
                 target_vol,
                 samples_total,
                 samples_passed: 0,
+                step,
+                current: start_vol,
             }
         }
         pub fn current_vol(&mut self, advance: usize) -> f32 {
             if self.samples_passed >= self.samples_total || self.samples_total == 0 {
                 return self.target_vol;
             }
-            let progress = self.samples_passed as f32 / self.samples_total as f32;
-            let current = self.start_vol + (self.target_vol - self.start_vol) * progress;
+            let val = self.current;
             self.samples_passed += advance;
-            current
+            self.current += self.step * advance as f32;
+            if self.step > 0.0 {
+                self.current = self.current.min(self.target_vol);
+            } else {
+                self.current = self.current.max(self.target_vol);
+            }
+            val
         }
         pub fn is_finished(&self) -> bool {
             self.samples_passed >= self.samples_total && self.samples_total > 0
@@ -211,7 +220,6 @@ pub mod mixer {
                 mix_buf: Vec::with_capacity(1920),
                 audio_mixer: AudioMixer::new(),
                 opus_passthrough_track: None,
-                final_pcm_buf: Vec::with_capacity(1920),
                 stuck_detector: Arc::new(StuckDetector::new(10_000)),
             }
         }
@@ -432,17 +440,13 @@ pub mod mixer {
                     }
                 }
             }
-            if self.final_pcm_buf.len() != out_len {
-                self.final_pcm_buf.resize(out_len, 0);
+            for (out, &sum) in buf.iter_mut().zip(self.mix_buf.iter()) {
+                *out = sum.clamp(i16::MIN as i32, i16::MAX as i32) as i16;
             }
-            for (final_pcm, &sum) in self.final_pcm_buf.iter_mut().zip(self.mix_buf.iter()) {
-                *final_pcm = sum.clamp(i16::MIN as i32, i16::MAX as i32) as i16;
-            }
-            self.audio_mixer.mix(&mut self.final_pcm_buf);
+            self.audio_mixer.mix(buf);
             if !self.audio_mixer.layers.is_empty() {
                 has_audio = true;
             }
-            buf.copy_from_slice(&self.final_pcm_buf);
             has_audio
         }
     }
