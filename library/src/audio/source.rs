@@ -675,6 +675,7 @@ pub mod http {
     use std::{
         io::{Read, Seek, SeekFrom},
         sync::Arc,
+        thread,
     };
     use symphonia::core::io::MediaSource;
     use tracing::debug;
@@ -704,9 +705,22 @@ pub mod http {
             let shared = Arc::new((Mutex::new(SharedState::new()), Condvar::new()));
             let shared_clone = Arc::clone(&shared);
             let url_clone = url.to_string();
-            tokio::spawn(async move {
-                prefetch_loop(shared_clone, client, url_clone, 0, Some(response), len).await;
-            });
+            thread::Builder::new()
+                .name("http-prefetch".into())
+                .spawn(move || {
+                    let rt = tokio::runtime::Builder::new_current_thread()
+                        .enable_all()
+                        .build()
+                        .unwrap();
+                    rt.block_on(prefetch_loop(
+                        shared_clone,
+                        client,
+                        url_clone,
+                        0,
+                        Some(response),
+                        len,
+                    ));
+                })?;
             Ok(Self {
                 pos: 0,
                 len,
