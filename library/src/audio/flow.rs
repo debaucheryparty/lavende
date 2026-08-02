@@ -122,10 +122,7 @@ pub mod controller {
         pub fn try_pop_frame(&mut self) -> Result<Option<PooledBuffer>, AudioError> {
             if !self.decoder_done {
                 while self.pending_len() < FRAME_SIZE_SAMPLES {
-                    match self
-                        .frame_rx
-                        .recv_timeout(std::time::Duration::from_millis(5))
-                    {
+                    match self.frame_rx.try_recv() {
                         Ok(AudioFrame::Pcm(chunk)) if chunk.is_empty() => {
                             self.pending_pcm.clear();
                             self.pending_pcm_pos = 0;
@@ -159,8 +156,8 @@ pub mod controller {
                             }
                             self.latest_opus = Some(packet);
                         }
-                        Err(flume::RecvTimeoutError::Timeout) => break,
-                        Err(flume::RecvTimeoutError::Disconnected) => {
+                        Err(flume::TryRecvError::Empty) => break,
+                        Err(flume::TryRecvError::Disconnected) => {
                             self.decoder_done = true;
                             break;
                         }
