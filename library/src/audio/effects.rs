@@ -3,6 +3,26 @@ pub mod volume {
         constants::{INT16_MAX_F, INT16_MIN_F},
         effects::fade::FadeCurve,
     };
+
+    struct DcBlocker {
+        x1: f32,
+        y1: f32,
+    }
+
+    impl DcBlocker {
+        fn new() -> Self {
+            Self { x1: 0.0, y1: 0.0 }
+        }
+
+        #[inline(always)]
+        fn process(&mut self, sample: f32) -> f32 {
+            let y = sample - self.x1 + 0.995 * self.y1;
+            self.x1 = sample;
+            self.y1 = y;
+            y
+        }
+    }
+
     pub struct VolumeEffect {
         current_volume: f32,
         target_volume: f32,
@@ -16,11 +36,12 @@ pub mod volume {
         limit_headroom: f32,
         limiter_lut: [f32; 1024],
         channels: usize,
+        dc_blockers: Vec<DcBlocker>,
     }
     impl VolumeEffect {
         pub fn new(volume: f32, sample_rate: u32, channels: usize) -> Self {
-            let limiter_threshold = 0.95_f32;
-            let limiter_softness = 0.4_f32;
+            let limiter_threshold = 0.98_f32;
+            let limiter_softness = 0.25_f32;
             let threshold_value = limiter_threshold * INT16_MAX_F;
             let limit_headroom = INT16_MAX_F - threshold_value;
             let mut limiter_lut = [0.0_f32; 1024];
@@ -29,6 +50,7 @@ pub mod volume {
                 *val = 1.0 - (-overshoot * limiter_softness).exp();
             }
             let fade_frames_total = sample_rate as usize;
+            let dc_blockers = (0..channels).map(|_| DcBlocker::new()).collect();
             Self {
                 current_volume: volume,
                 target_volume: volume,
@@ -42,6 +64,7 @@ pub mod volume {
                 limit_headroom,
                 limiter_lut,
                 channels,
+                dc_blockers,
             }
         }
         pub fn set_volume(&mut self, volume: f32) {
@@ -117,8 +140,11 @@ pub mod volume {
                 0.0
             };
             let mut gain = gain_start;
+            let mut ch = 0;
             for s in frame.iter_mut() {
-                let scaled = *s as f32 * gain;
+                let mut sample_f = *s as f32;
+                sample_f = self.dc_blockers[ch].process(sample_f);
+                let scaled = sample_f * gain;
                 if scaled.abs() > self.threshold_value {
                     let limited = self.apply_limiter(scaled);
                     *s = limited.clamp(INT16_MIN_F, INT16_MAX_F) as i16;
@@ -126,6 +152,7 @@ pub mod volume {
                     *s = scaled as i16;
                 }
                 gain += step;
+                ch = (ch + 1) % self.channels;
             }
         }
     }

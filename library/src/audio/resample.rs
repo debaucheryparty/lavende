@@ -11,7 +11,7 @@ pub mod sinc {
     }
     impl SincResampler {
         pub fn new(source_rate: u32, target_rate: u32, channels: usize) -> Self {
-            let taps = 32;
+            let taps = 24;
             let mut table = Vec::with_capacity(taps);
             let m = taps as f32 - 1.0;
             let half_taps = (taps / 2) as f32;
@@ -34,6 +34,7 @@ pub mod sinc {
                 head: 0,
             }
         }
+        #[inline(always)]
         fn sinc(x: f32) -> f32 {
             if x.abs() < 1e-6 {
                 return 1.0;
@@ -97,9 +98,9 @@ pub mod sinc {
             let resampler = SincResampler::new(48000, 48000, 2);
             assert!(resampler.is_passthrough());
             assert_eq!(resampler.channels, 2);
-            assert_eq!(resampler.taps, 32);
-            assert_eq!(resampler.table.len(), 32);
-            assert_eq!(resampler.buffer.len(), 128);
+            assert_eq!(resampler.taps, 24);
+            assert_eq!(resampler.table.len(), 24);
+            assert_eq!(resampler.buffer.len(), 96);
         }
         #[test]
         fn test_resampler_new_downsample() {
@@ -175,7 +176,7 @@ pub mod sinc {
         #[test]
         fn test_resampler_table_generation() {
             let resampler = SincResampler::new(48000, 44100, 2);
-            assert_eq!(resampler.table.len(), 32);
+            assert_eq!(resampler.table.len(), 24);
             for &val in &resampler.table {
                 assert!(val.is_finite());
             }
@@ -184,7 +185,7 @@ pub mod sinc {
         fn test_resampler_multiple_channels() {
             for channels in 1..=8 {
                 let resampler = SincResampler::new(48000, 44100, channels);
-                assert_eq!(resampler.buffer.len(), channels * 64);
+                assert_eq!(resampler.buffer.len(), channels * 48);
             }
         }
     }

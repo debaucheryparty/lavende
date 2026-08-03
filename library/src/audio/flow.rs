@@ -129,7 +129,11 @@ pub mod controller {
                             self.decoder_done = false;
                         }
                         Ok(AudioFrame::Pcm(chunk)) => {
-                            self.compact_pending();
+                            if self.pending_pcm_pos > 0
+                                && self.pending_pcm_pos > self.pending_pcm.len() / 2
+                            {
+                                self.compact_pending();
+                            }
                             self.pending_pcm.extend_from_slice(&chunk);
                             crate::audio::buffer::release_buffer(chunk);
                         }
@@ -149,7 +153,11 @@ pub mod controller {
                                 if let Ok(decoded_samples) =
                                     decoder.decode(opus_packet, mut_signals, false)
                                 {
-                                    self.compact_pending();
+                                    if self.pending_pcm_pos > 0
+                                        && self.pending_pcm_pos > self.pending_pcm.len() / 2
+                                    {
+                                        self.compact_pending();
+                                    }
                                     self.pending_pcm
                                         .extend_from_slice(&self.opus_pcm[..decoded_samples * 2]);
                                 }
