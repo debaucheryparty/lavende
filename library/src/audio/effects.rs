@@ -40,7 +40,7 @@ pub mod volume {
     }
     impl VolumeEffect {
         pub fn new(volume: f32, sample_rate: u32, channels: usize) -> Self {
-            let limiter_threshold = 0.98_f32;
+            let limiter_threshold = 0.95_f32;
             let limiter_softness = 0.25_f32;
             let threshold_value = limiter_threshold * INT16_MAX_F;
             let limit_headroom = INT16_MAX_F - threshold_value;
