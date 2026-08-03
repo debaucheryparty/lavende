@@ -401,8 +401,15 @@ impl LavendePlayer {
     }
 
     pub async fn connect(&self, channel_id: Option<String>, self_deaf: bool, self_mute: bool) {
-        if let Some(ref c) = channel_id {
-            self.voice_state.write().await.voice_channel_id = Some(c.clone());
+        {
+            let mut vs = self.voice_state.write().await;
+            if vs.voice_channel_id != channel_id {
+                vs.token = None;
+                vs.endpoint = None;
+            }
+            if let Some(ref c) = channel_id {
+                vs.voice_channel_id = Some(c.clone());
+            }
         }
         let payload = serde_json::json!({
             "op": 4,
@@ -417,7 +424,13 @@ impl LavendePlayer {
     }
 
     pub async fn disconnect(&self) {
-        self.voice_state.write().await.voice_channel_id = None;
+        {
+            let mut vs = self.voice_state.write().await;
+            vs.voice_channel_id = None;
+            vs.session_id = None;
+            vs.token = None;
+            vs.endpoint = None;
+        }
         let payload = serde_json::json!({
             "op": 4,
             "d": {
@@ -444,7 +457,8 @@ impl LavendePlayer {
     }
 
     pub async fn skip(&self) {
-        self.stop().await;
+        self.native_player.stop_track().await;
+        self.trigger_transition().await;
     }
 
     pub async fn update_voice_state(
@@ -802,9 +816,17 @@ impl LavendeManager {
                                 .get("channel_id")
                                 .and_then(|v| v.as_str())
                                 .map(|s| s.to_string());
-                            player
-                                .update_voice_state(session_id, None, None, channel_id)
-                                .await;
+                            if channel_id.is_none() {
+                                let mut vs = player.voice_state.write().await;
+                                vs.voice_channel_id = None;
+                                vs.session_id = None;
+                                vs.token = None;
+                                vs.endpoint = None;
+                            } else {
+                                player
+                                    .update_voice_state(session_id, None, None, channel_id)
+                                    .await;
+                            }
                         }
                     }
                 }

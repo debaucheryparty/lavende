@@ -426,7 +426,7 @@ impl Player {
             e.send("resumed", json!({}));
         }
     }
-    pub async fn stop(&self) {
+    pub async fn stop_track(&self) {
         self.stop_signal.store(true, Ordering::SeqCst);
         if let Some(handle) = &*self.track_handle.lock().await {
             handle.stop();
@@ -443,15 +443,18 @@ impl Player {
                 task.abort();
             }
         }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        let mut mixer_guard = self.mixer.lock();
+        mixer_guard.stop_all();
+    }
+    pub async fn stop(&self) {
+        self.stop_track().await;
         {
             let mut cancel_guard = self.voice_gateway_cancel.lock().await;
             if let Some(cancel) = cancel_guard.take() {
                 cancel.cancel();
             }
         }
-        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-        let mut mixer_guard = self.mixer.lock();
-        mixer_guard.stop_all();
     }
     pub async fn seek(&self, position_ms: i64) {
         if let Some(handle) = &*self.track_handle.lock().await {
