@@ -316,30 +316,29 @@ pub async fn fetch_multi_region(
     base_config: &Value,
 ) -> Option<Value> {
     let mut tried_endpoint: Option<&str> = None;
-    if let Some(hint) = domain_hint {
-        if let Some(region) = get_region_config(hint) {
-            debug!("Amazon Music: trying {entity_name} on hinted domain '{hint}'");
-            tried_endpoint = Some(region.skill_endpoint);
-            if let Some(data) = fetch_from_endpoint(
-                http,
-                id,
-                api_path,
-                url_path_segment,
-                region,
-                hint,
-                base_config,
-            )
-            .await
-            {
-                if !is_error(&data) {
-                    debug!("Amazon Music: {entity_name} resolved via hinted domain '{hint}'");
-                    return Some(data);
-                }
-            }
-            debug!(
-                "Amazon Music: hinted domain '{hint}' failed for {entity_name}, trying other regions"
-            );
+    if let Some(hint) = domain_hint
+        && let Some(region) = get_region_config(hint)
+    {
+        debug!("Amazon Music: trying {entity_name} on hinted domain '{hint}'");
+        tried_endpoint = Some(region.skill_endpoint);
+        if let Some(data) = fetch_from_endpoint(
+            http,
+            id,
+            api_path,
+            url_path_segment,
+            region,
+            hint,
+            base_config,
+        )
+        .await
+            && !is_error(&data)
+        {
+            debug!("Amazon Music: {entity_name} resolved via hinted domain '{hint}'");
+            return Some(data);
         }
+        debug!(
+            "Amazon Music: hinted domain '{hint}' failed for {entity_name}, trying other regions"
+        );
     }
     let mut futs = FuturesUnordered::new();
     for &(label, domain) in REGION_FALLBACKS {
@@ -366,11 +365,11 @@ pub async fn fetch_multi_region(
         });
     }
     while let Some(result) = futs.next().await {
-        if let Some((data, label)) = result {
-            if !is_error(&data) {
-                debug!("Amazon Music: {entity_name} resolved via {label} region");
-                return Some(data);
-            }
+        if let Some((data, label)) = result
+            && !is_error(&data)
+        {
+            debug!("Amazon Music: {entity_name} resolved via {label} region");
+            return Some(data);
         }
     }
     warn!("Amazon Music: {entity_name} not found on any regional endpoint (NA, EU, FE)");

@@ -47,10 +47,9 @@ pub async fn fetch_stream_url(client: &Arc<reqwest::Client>, identifier: &str) -
         .form(&body)
         .send()
         .await
+        && let Some(url) = parse_response(resp).await
     {
-        if let Some(url) = parse_response(resp).await {
-            return Some(url);
-        }
+        return Some(url);
     }
 
     let get_url = format!("https://api.audiomack.com/v1/music/play/{identifier}");
@@ -65,10 +64,9 @@ pub async fn fetch_stream_url(client: &Arc<reqwest::Client>, identifier: &str) -
         .query(&query)
         .send()
         .await
+        && let Some(url) = parse_response(resp).await
     {
-        if let Some(url) = parse_response(resp).await {
-            return Some(url);
-        }
+        return Some(url);
     }
     None
 }
@@ -89,10 +87,10 @@ async fn parse_response(resp: reqwest::Response) -> Option<String> {
         return Some(text);
     }
     let json: serde_json::Value = serde_json::from_str(&text).ok()?;
-    if let Some(s) = json.as_str() {
-        if is_stream(s) {
-            return Some(s.to_owned());
-        }
+    if let Some(s) = json.as_str()
+        && is_stream(s)
+    {
+        return Some(s.to_owned());
     }
     let results = json.get("results").unwrap_or(&json);
     let potential_url = results
@@ -102,10 +100,10 @@ async fn parse_response(resp: reqwest::Response) -> Option<String> {
         .or_else(|| results.get("stream_url"))
         .or_else(|| results.get("url"))
         .and_then(|v| v.as_str());
-    if let Some(url) = potential_url {
-        if is_stream(url) {
-            return Some(url.to_owned());
-        }
+    if let Some(url) = potential_url
+        && is_stream(url)
+    {
+        return Some(url.to_owned());
     }
     None
 }

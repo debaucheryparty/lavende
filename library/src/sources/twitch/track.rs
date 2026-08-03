@@ -62,20 +62,20 @@ impl LiveHlsReader {
             if let Some(ip) = local_addr {
                 builder = builder.local_address(ip);
             }
-            if let Some(ref cfg) = proxy {
-                if let Some(ref url) = cfg.url {
-                    match reqwest::Proxy::all(url) {
-                        Ok(mut p) => {
-                            if let (Some(u), Some(pw)) = (&cfg.username, &cfg.password) {
-                                p = p.basic_auth(u, pw);
-                            }
-                            builder = builder.proxy(p);
+            if let Some(ref cfg) = proxy
+                && let Some(ref url) = cfg.url
+            {
+                match reqwest::Proxy::all(url) {
+                    Ok(mut p) => {
+                        if let (Some(u), Some(pw)) = (&cfg.username, &cfg.password) {
+                            p = p.basic_auth(u, pw);
                         }
-                        Err(e) => {
-                            tracing::error!("Twitch live HLS: proxy setup failed for {url}: {e}");
-                            let _ = err_tx.send(format!("Proxy setup failed: {e}"));
-                            return;
-                        }
+                        builder = builder.proxy(p);
+                    }
+                    Err(e) => {
+                        tracing::error!("Twitch live HLS: proxy setup failed for {url}: {e}");
+                        let _ = err_tx.send(format!("Proxy setup failed: {e}"));
+                        return;
                     }
                 }
             }
@@ -125,10 +125,10 @@ impl LiveHlsReader {
                     }
                     if seen.insert(seg.url.clone()) {
                         seen_history.push_back(seg.url);
-                        if seen_history.len() > 50 {
-                            if let Some(old) = seen_history.pop_front() {
-                                seen.remove(&old);
-                            }
+                        if seen_history.len() > 50
+                            && let Some(old) = seen_history.pop_front()
+                        {
+                            seen.remove(&old);
                         }
                     }
                 }

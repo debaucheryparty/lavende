@@ -84,17 +84,17 @@ pub fn parse_track(dto: &JioSaavnTrackDto) -> Option<Track> {
         .map(|s| s.replace("150x150", "500x500").replace("50x50", "500x500"));
 
     let mut artist_names = Vec::new();
-    if let Some(more) = &dto.more_info {
-        if let Some(artist_map) = &more.artist_map {
-            let primary = artist_map
-                .primary_artists
-                .as_ref()
-                .or(artist_map.artists.as_ref());
-            if let Some(arr) = primary {
-                for a in arr {
-                    if let Some(name) = &a.name {
-                        artist_names.push(name.clone());
-                    }
+    if let Some(more) = &dto.more_info
+        && let Some(artist_map) = &more.artist_map
+    {
+        let primary = artist_map
+            .primary_artists
+            .as_ref()
+            .or(artist_map.artists.as_ref());
+        if let Some(arr) = primary {
+            for a in arr {
+                if let Some(name) = &a.name {
+                    artist_names.push(name.clone());
                 }
             }
         }

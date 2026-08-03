@@ -134,6 +134,9 @@ pub mod handle {
         pub fn stop(&self) {
             self.state
                 .store(PlaybackState::Stopped as u8, Ordering::SeqCst);
+            let _ = self
+                .command_tx
+                .send(crate::audio::processor::DecoderCommand::Stop);
         }
         pub fn set_volume(&self, vol: f32) {
             self.volume.store(vol.to_bits(), Ordering::Release);

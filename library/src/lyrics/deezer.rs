@@ -28,19 +28,18 @@ impl DeezerProvider {
     pub fn new(proxy_config: Option<&HttpProxyConfig>) -> Self {
         let mut client_builder = reqwest::Client::builder();
 
-        if let Some(proxy_cfg) = proxy_config {
-            if let Some(p_obj) = proxy_cfg
+        if let Some(proxy_cfg) = proxy_config
+            && let Some(p_obj) = proxy_cfg
                 .url
                 .as_ref()
                 .and_then(|u| reqwest::Proxy::all(u).ok())
-            {
-                let mut proxy_obj = p_obj;
-                if let (Some(user), Some(pass)) = (&proxy_cfg.username, &proxy_cfg.password) {
-                    proxy_obj = proxy_obj.basic_auth(user, pass);
-                }
-                client_builder = client_builder.proxy(proxy_obj);
-                tracing::info!("Deezer Lyrics Provider: HTTP Proxy configured");
+        {
+            let mut proxy_obj = p_obj;
+            if let (Some(user), Some(pass)) = (&proxy_cfg.username, &proxy_cfg.password) {
+                proxy_obj = proxy_obj.basic_auth(user, pass);
             }
+            client_builder = client_builder.proxy(proxy_obj);
+            tracing::info!("Deezer Lyrics Provider: HTTP Proxy configured");
         }
 
         Self {
@@ -207,31 +206,30 @@ impl LyricsProvider for DeezerProvider {
             }
         }
 
-        if !synced {
-            if let Some(sl) = lyrics
+        if !synced
+            && let Some(sl) = lyrics
                 .get("synchronizedLines")
                 .and_then(|l| l.as_array())
                 .filter(|a| !a.is_empty())
-            {
-                synced = true;
-                for line in sl {
-                    let text = line
-                        .get("line")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_owned();
-                    let timestamp = line
-                        .get("milliseconds")
-                        .and_then(|v| v.as_u64())
-                        .unwrap_or(0);
-                    let duration = line.get("duration").and_then(|v| v.as_u64()).unwrap_or(0);
+        {
+            synced = true;
+            for line in sl {
+                let text = line
+                    .get("line")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_owned();
+                let timestamp = line
+                    .get("milliseconds")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+                let duration = line.get("duration").and_then(|v| v.as_u64()).unwrap_or(0);
 
-                    lines.push(LyricsLine {
-                        text,
-                        timestamp,
-                        duration,
-                    });
-                }
+                lines.push(LyricsLine {
+                    text,
+                    timestamp,
+                    duration,
+                });
             }
         }
 

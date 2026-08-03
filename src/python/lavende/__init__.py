@@ -505,7 +505,12 @@ class Player:
 
 
 class LavendeManager:
-    def __init__(self, send_to_shard: Callable, client: Dict[str, str], config_path: Optional[str] = None):
+    def __init__(
+        self,
+        send_to_shard: Callable,
+        client: Dict[str, str],
+        config_path: Optional[str] = None,
+    ):
         self.players: Dict[str, Player] = {}
         self.send_to_shard = send_to_shard
         self.client = client
@@ -579,11 +584,14 @@ DEFAULT_SEARCH_PLATFORM = "ytsearch"
 
 import re as _re
 
+
 def _is_url(s: str) -> bool:
     return bool(_re.match(r"^https?://", s))
 
+
 def _has_search_prefix(s: str) -> bool:
     return bool(_re.match(r"^[a-z]+search:|^[a-z]+rec:|^[a-z]+isrc:", s.split("?")[0]))
+
 
 async def load(identifier: str, requester: Any = None) -> Dict[str, Any]:
     if not _is_url(identifier) and not _has_search_prefix(identifier):
@@ -608,7 +616,9 @@ async def load(identifier: str, requester: Any = None) -> Dict[str, Any]:
     return result
 
 
-async def load_lyrics(encoded_track: str, skip_track_source: bool = False) -> Optional[dict]:
+async def load_lyrics(
+    encoded_track: str, skip_track_source: bool = False
+) -> Optional[dict]:
     try:
         res = await _rust_load_lyrics(encoded_track, skip_track_source)
         return json.loads(res)

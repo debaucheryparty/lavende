@@ -126,18 +126,18 @@ impl TokenManager {
 
         {
             let lock = self.token.read().await;
-            if let Some((token, expiry)) = &*lock {
-                if now < *expiry {
-                    return Some(token.clone());
-                }
+            if let Some((token, expiry)) = &*lock
+                && now < *expiry
+            {
+                return Some(token.clone());
             }
         }
 
         let mut lock = self.token.write().await;
-        if let Some((token, expiry)) = &*lock {
-            if now < *expiry {
-                return Some(token.clone());
-            }
+        if let Some((token, expiry)) = &*lock
+            && now < *expiry
+        {
+            return Some(token.clone());
         }
 
         if let Some(token) = fetch_fn().await {

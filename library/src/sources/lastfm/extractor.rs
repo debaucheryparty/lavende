@@ -62,11 +62,12 @@ impl super::LastFMSource {
                     .unwrap_or(0);
             }
         }
-        if artwork_url.is_none() || length == 0 {
-            if let Ok(res) = self.http.get(url).send().await {
-                if let Ok(body) = res.text().await {
-                    if artwork_url.is_none() {
-                        if let Some(caps) = Regex::new(
+        if (artwork_url.is_none() || length == 0)
+            && let Ok(res) = self.http.get(url).send().await
+            && let Ok(body) = res.text().await
+        {
+            if artwork_url.is_none()
+                        && let Some(caps) = Regex::new(
                             r#"(?i)<img[^>]*?class="[^"]*header-new-background-image[^"]*"[^>]*?src="([^"]+)""#,
                         )
                         .ok()
@@ -76,9 +77,8 @@ impl super::LastFMSource {
                                 .get(1)
                                 .map(|m| m.as_str().replace("/64s/", "/300x300/"));
                         }
-                    }
-                    if length == 0 {
-                        if let Some(caps) = Regex::new(
+            if length == 0
+                        && let Some(caps) = Regex::new(
                             r#"(?i)<dt[^>]*?>\s*Length\s*</dt>\s*<dd[^>]*?class="[^"]*catalogue-metadata-description[^"]*"[^>]*?>\s*(\d+:\d+(?::\d+)?)\s*</dd>"#,
                         )
                         .ok()
@@ -88,9 +88,6 @@ impl super::LastFMSource {
                                 caps.get(1).map(|m| m.as_str()).unwrap_or("0:00"),
                             );
                         }
-                    }
-                }
-            }
         }
         let canonical_url = construct_track_url(artist, title);
         LoadResult::Track(Track::new(TrackInfo {
@@ -114,45 +111,45 @@ impl super::LastFMSource {
                 urlencoding::encode(artist),
                 urlencoding::encode(album)
             );
-            if let Some(json) = get_json(&self.http, &api_url).await {
-                if let Some(tracks) = json["album"]["tracks"]["track"].as_array() {
-                    let artwork_url = json["album"]["image"]
-                        .as_array()
-                        .and_then(|images| images.last())
-                        .and_then(|img| img["#text"].as_str())
-                        .filter(|s| !s.is_empty())
-                        .map(|s| s.replace("/34s/", "/300x300/"));
-                    let mut results = Vec::new();
-                    for t in tracks {
-                        let title = t["name"].as_str().unwrap_or("Unknown").to_owned();
-                        let t_url = construct_track_url(artist, &title);
-                        let length = t["duration"]
-                            .as_str()
-                            .and_then(|s| s.parse::<u64>().ok())
-                            .or_else(|| t["duration"].as_u64())
-                            .unwrap_or(0)
-                            * 1000;
-                        results.push(Track::new(TrackInfo {
-                            identifier: t_url.clone(),
-                            is_seekable: true,
-                            author: artist.to_owned(),
-                            title,
-                            length,
-                            uri: Some(t_url),
-                            artwork_url: artwork_url.clone(),
-                            source_name: "lastfm".to_owned(),
-                            ..Default::default()
-                        }));
-                    }
-                    return LoadResult::Playlist(PlaylistData {
-                        info: PlaylistInfo {
-                            name: format!("{} - {}", artist, album),
-                            selected_track: -1,
-                        },
-                        plugin_info: serde_json::json!({}),
-                        tracks: results,
-                    });
+            if let Some(json) = get_json(&self.http, &api_url).await
+                && let Some(tracks) = json["album"]["tracks"]["track"].as_array()
+            {
+                let artwork_url = json["album"]["image"]
+                    .as_array()
+                    .and_then(|images| images.last())
+                    .and_then(|img| img["#text"].as_str())
+                    .filter(|s| !s.is_empty())
+                    .map(|s| s.replace("/34s/", "/300x300/"));
+                let mut results = Vec::new();
+                for t in tracks {
+                    let title = t["name"].as_str().unwrap_or("Unknown").to_owned();
+                    let t_url = construct_track_url(artist, &title);
+                    let length = t["duration"]
+                        .as_str()
+                        .and_then(|s| s.parse::<u64>().ok())
+                        .or_else(|| t["duration"].as_u64())
+                        .unwrap_or(0)
+                        * 1000;
+                    results.push(Track::new(TrackInfo {
+                        identifier: t_url.clone(),
+                        is_seekable: true,
+                        author: artist.to_owned(),
+                        title,
+                        length,
+                        uri: Some(t_url),
+                        artwork_url: artwork_url.clone(),
+                        source_name: "lastfm".to_owned(),
+                        ..Default::default()
+                    }));
                 }
+                return LoadResult::Playlist(PlaylistData {
+                    info: PlaylistInfo {
+                        name: format!("{} - {}", artist, album),
+                        selected_track: -1,
+                    },
+                    plugin_info: serde_json::json!({}),
+                    tracks: results,
+                });
             }
         }
         let body = match self.http.get(url).send().await {
@@ -212,45 +209,45 @@ impl super::LastFMSource {
                 key,
                 urlencoding::encode(artist)
             );
-            if let Some(json) = get_json(&self.http, &api_url).await {
-                if let Some(tracks) = json["toptracks"]["track"].as_array() {
-                    let mut results = Vec::new();
-                    for t in tracks {
-                        let title = t["name"].as_str().unwrap_or("Unknown").to_owned();
-                        let t_url = construct_track_url(artist, &title);
-                        let artwork_url = t["image"]
-                            .as_array()
-                            .and_then(|images| images.last())
-                            .and_then(|img| img["#text"].as_str())
-                            .filter(|s| !s.is_empty())
-                            .map(|s| s.replace("/34s/", "/300x300/"));
-                        let length = t["duration"]
-                            .as_str()
-                            .and_then(|s| s.parse::<u64>().ok())
-                            .or_else(|| t["duration"].as_u64())
-                            .unwrap_or(0)
-                            * 1000;
-                        results.push(Track::new(TrackInfo {
-                            identifier: t_url.clone(),
-                            is_seekable: true,
-                            author: artist.to_owned(),
-                            title,
-                            length,
-                            uri: Some(t_url),
-                            artwork_url,
-                            source_name: "lastfm".to_owned(),
-                            ..Default::default()
-                        }));
-                    }
-                    return LoadResult::Playlist(PlaylistData {
-                        info: PlaylistInfo {
-                            name: format!("{} - Top Tracks", artist),
-                            selected_track: -1,
-                        },
-                        plugin_info: serde_json::json!({}),
-                        tracks: results,
-                    });
+            if let Some(json) = get_json(&self.http, &api_url).await
+                && let Some(tracks) = json["toptracks"]["track"].as_array()
+            {
+                let mut results = Vec::new();
+                for t in tracks {
+                    let title = t["name"].as_str().unwrap_or("Unknown").to_owned();
+                    let t_url = construct_track_url(artist, &title);
+                    let artwork_url = t["image"]
+                        .as_array()
+                        .and_then(|images| images.last())
+                        .and_then(|img| img["#text"].as_str())
+                        .filter(|s| !s.is_empty())
+                        .map(|s| s.replace("/34s/", "/300x300/"));
+                    let length = t["duration"]
+                        .as_str()
+                        .and_then(|s| s.parse::<u64>().ok())
+                        .or_else(|| t["duration"].as_u64())
+                        .unwrap_or(0)
+                        * 1000;
+                    results.push(Track::new(TrackInfo {
+                        identifier: t_url.clone(),
+                        is_seekable: true,
+                        author: artist.to_owned(),
+                        title,
+                        length,
+                        uri: Some(t_url),
+                        artwork_url,
+                        source_name: "lastfm".to_owned(),
+                        ..Default::default()
+                    }));
                 }
+                return LoadResult::Playlist(PlaylistData {
+                    info: PlaylistInfo {
+                        name: format!("{} - Top Tracks", artist),
+                        selected_track: -1,
+                    },
+                    plugin_info: serde_json::json!({}),
+                    tracks: results,
+                });
             }
         }
         let body = match self.http.get(url).send().await {
@@ -310,46 +307,46 @@ impl super::LastFMSource {
                 urlencoding::encode(username),
                 key
             );
-            if let Some(json) = get_json(&self.http, &api_url).await {
-                if let Some(tracks) = json["toptracks"]["track"].as_array() {
-                    let mut results = Vec::new();
-                    for t in tracks {
-                        let title = t["name"].as_str().unwrap_or("Unknown").to_owned();
-                        let artist = t["artist"]["name"].as_str().unwrap_or("Unknown").to_owned();
-                        let t_url = construct_track_url(&artist, &title);
-                        let artwork_url = t["image"]
-                            .as_array()
-                            .and_then(|images| images.last())
-                            .and_then(|img| img["#text"].as_str())
-                            .filter(|s| !s.is_empty())
-                            .map(|s| s.replace("/34s/", "/300x300/"));
-                        let length = t["duration"]
-                            .as_str()
-                            .and_then(|s| s.parse::<u64>().ok())
-                            .or_else(|| t["duration"].as_u64())
-                            .unwrap_or(0)
-                            * 1000;
-                        results.push(Track::new(TrackInfo {
-                            identifier: t_url.clone(),
-                            is_seekable: true,
-                            author: artist,
-                            title,
-                            length,
-                            uri: Some(t_url),
-                            artwork_url,
-                            source_name: "lastfm".to_owned(),
-                            ..Default::default()
-                        }));
-                    }
-                    return LoadResult::Playlist(PlaylistData {
-                        info: PlaylistInfo {
-                            name: format!("{}'s Top Tracks", username),
-                            selected_track: -1,
-                        },
-                        plugin_info: serde_json::json!({}),
-                        tracks: results,
-                    });
+            if let Some(json) = get_json(&self.http, &api_url).await
+                && let Some(tracks) = json["toptracks"]["track"].as_array()
+            {
+                let mut results = Vec::new();
+                for t in tracks {
+                    let title = t["name"].as_str().unwrap_or("Unknown").to_owned();
+                    let artist = t["artist"]["name"].as_str().unwrap_or("Unknown").to_owned();
+                    let t_url = construct_track_url(&artist, &title);
+                    let artwork_url = t["image"]
+                        .as_array()
+                        .and_then(|images| images.last())
+                        .and_then(|img| img["#text"].as_str())
+                        .filter(|s| !s.is_empty())
+                        .map(|s| s.replace("/34s/", "/300x300/"));
+                    let length = t["duration"]
+                        .as_str()
+                        .and_then(|s| s.parse::<u64>().ok())
+                        .or_else(|| t["duration"].as_u64())
+                        .unwrap_or(0)
+                        * 1000;
+                    results.push(Track::new(TrackInfo {
+                        identifier: t_url.clone(),
+                        is_seekable: true,
+                        author: artist,
+                        title,
+                        length,
+                        uri: Some(t_url),
+                        artwork_url,
+                        source_name: "lastfm".to_owned(),
+                        ..Default::default()
+                    }));
                 }
+                return LoadResult::Playlist(PlaylistData {
+                    info: PlaylistInfo {
+                        name: format!("{}'s Top Tracks", username),
+                        selected_track: -1,
+                    },
+                    plugin_info: serde_json::json!({}),
+                    tracks: results,
+                });
             }
         }
         let body = match self.http.get(url).send().await {

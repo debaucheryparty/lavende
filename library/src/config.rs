@@ -1274,7 +1274,7 @@ use serde::Deserialize;
 pub use server::*;
 pub use sources::*;
 use std::{fs, path::Path};
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, Default)]
 pub struct AppConfig {
     pub server: ServerConfig,
     #[serde(default)]
@@ -1302,7 +1302,6 @@ impl AppConfig {
         } else {
             return Err("config.toml or config.example.toml not found — please create one from config.example.toml".into());
         };
-        println!("Loading configuration from: {}", config_path);
         let raw = fs::read_to_string(config_path)?;
         if raw.is_empty() {
             return Err(format!("{} is empty", config_path).into());
@@ -1331,20 +1330,5 @@ impl AppConfig {
         }
         let config: Self = toml::from_str(&raw)?;
         Ok(config)
-    }
-}
-impl Default for AppConfig {
-    fn default() -> Self {
-        Self {
-            server: Default::default(),
-            route_planner: Default::default(),
-            sources: Default::default(),
-            lyrics: Default::default(),
-            logging: None,
-            filters: Default::default(),
-            player: Default::default(),
-            metrics: Default::default(),
-            config_server: None,
-        }
     }
 }

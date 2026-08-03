@@ -442,12 +442,11 @@ impl SourcePlugin for JioSaavnSource {
             let t = caps.name("type").map(|m| m.as_str()).unwrap_or("");
             let id = caps.name("id").map(|m| m.as_str()).unwrap_or("");
             if t == "song" {
-                if let Some(meta) = self.fetch_metadata(id).await {
-                    if let Ok(dto) = serde_json::from_value::<JioSaavnTrackDto>(meta) {
-                        if let Some(track) = parse_track(&dto) {
-                            return LoadResult::Track(track);
-                        }
-                    }
+                if let Some(meta) = self.fetch_metadata(id).await
+                    && let Ok(dto) = serde_json::from_value::<JioSaavnTrackDto>(meta)
+                    && let Some(track) = parse_track(&dto)
+                {
+                    return LoadResult::Track(track);
                 }
             } else {
                 return self.resolve_list(t, id).await;

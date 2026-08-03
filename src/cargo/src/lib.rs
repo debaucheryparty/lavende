@@ -17,6 +17,51 @@ pub use lavende_core::protocol::tracks::{
 
 use serde::{Deserialize, Serialize};
 
+pub fn set_config_path(path: Option<String>) {
+    lavende_core::set_config_path(path);
+}
+
+pub fn get_source_manager()
+-> &'static std::sync::Mutex<Option<Arc<lavende_core::sources::manager::SourceManager>>> {
+    lavende_core::get_source_manager()
+}
+
+pub fn get_lyrics_manager()
+-> &'static std::sync::Mutex<Option<Arc<lavende_core::lyrics::LyricsManager>>> {
+    lavende_core::get_lyrics_manager()
+}
+
+pub const DEFAULT_SEARCH_PLATFORM: &str = "ytsearch";
+
+fn is_url(s: &str) -> bool {
+    s.starts_with("http://") || s.starts_with("https://")
+}
+
+fn has_search_prefix(s: &str) -> bool {
+    let before_qs = s.split('?').next().unwrap_or(s);
+    before_qs.starts_with(|c: char| c.is_ascii_lowercase()) && before_qs.contains("search:")
+        || before_qs.contains("rec:")
+        || before_qs.contains("isrc:")
+}
+
+pub async fn load(identifier: String) -> Result<LoadResult, String> {
+    let identifier = if !is_url(&identifier) && !has_search_prefix(&identifier) {
+        format!("{}:{}", DEFAULT_SEARCH_PLATFORM, identifier)
+    } else {
+        identifier
+    };
+    let json_str = lavende_core::load(identifier).await?;
+    serde_json::from_str(&json_str).map_err(|e| format!("Failed to parse load result: {}", e))
+}
+
+pub async fn load_lyrics(encoded_track: String, skip_track_source: bool) -> Result<String, String> {
+    lavende_core::load_lyrics(encoded_track, skip_track_source).await
+}
+
+pub async fn load_lyrics_by_search(title: String, artist: String) -> Result<String, String> {
+    lavende_core::load_lyrics_by_search(title, artist).await
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum LavendeEvent {
     TrackStart {
@@ -395,7 +440,7 @@ impl LavendePlayer {
     }
 
     pub async fn search(&self, query: &str) -> Result<LoadResult, String> {
-        load(query.to_string()).await
+        self::load(query.to_string()).await
     }
 
     pub async fn skip(&self) {
@@ -555,7 +600,11 @@ impl LavendePlayer {
     fn get_transitions_config() -> (bool, bool, u64) {
         let guard = lavende_core::get_source_manager().lock().unwrap();
         if let Some(sm) = guard.as_ref() {
-            (sm.player_config.transitions.gapless, sm.player_config.transitions.crossfade, sm.player_config.transitions.crossfade_duration_ms)
+            (
+                sm.player_config.transitions.gapless,
+                sm.player_config.transitions.crossfade,
+                sm.player_config.transitions.crossfade_duration_ms,
+            )
         } else {
             (false, false, 0)
         }
@@ -589,7 +638,9 @@ impl LavendePlayer {
         }
     }
 
-    fn trigger_transition(&self) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + '_>> {
+    fn trigger_transition(
+        &self,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + '_>> {
         Box::pin(async move {
             let (repeat_mode, finished_track_opt) = {
                 let mode = self.repeat_mode.read().await.clone();
@@ -774,30 +825,6 @@ impl LavendeManager {
             }
         }
     }
-}
-
-pub const DEFAULT_SEARCH_PLATFORM: &str = "ytsearch";
-
-fn is_url(s: &str) -> bool {
-    s.starts_with("http://") || s.starts_with("https://")
-}
-
-fn has_search_prefix(s: &str) -> bool {
-    let before_qs = s.split('?').next().unwrap_or(s);
-    before_qs.starts_with(|c: char| c.is_ascii_lowercase())
-        && before_qs.contains("search:")
-        || before_qs.contains("rec:")
-        || before_qs.contains("isrc:")
-}
-
-pub async fn load(identifier: String) -> Result<LoadResult, String> {
-    let identifier = if !is_url(&identifier) && !has_search_prefix(&identifier) {
-        format!("{}:{}", DEFAULT_SEARCH_PLATFORM, identifier)
-    } else {
-        identifier
-    };
-    let json_str = lavende_core::load(identifier).await?;
-    serde_json::from_str(&json_str).map_err(|e| format!("Failed to parse load result: {}", e))
 }
 
 pub const VALID_SPONSOR_BLOCKS: &[&str] = &[
@@ -1176,13 +1203,3 @@ pub const SOURCE_LINKS_REGEXES: &[(&str, &str)] = &[
     ("musicYandex", r"https:\/\/music\.yandex\.ru\/"),
     ("radiohost", r"https?:\/\/[^.\s]+\.radiohost\.de\/(\S+)"),
 ];
-
-pub async fn load_lyrics(encoded_track: String, skip_track_source: bool) -> Result<LyricsData, String> {
-    let res_json = lavende_core::load_lyrics(encoded_track, skip_track_source).await?;
-    serde_json::from_str(&res_json).map_err(|e| e.to_string())
-}
-
-pub async fn load_lyrics_by_search(title: String, artist: String) -> Result<LyricsData, String> {
-    let res_json = lavende_core::load_lyrics_by_search(title, artist).await?;
-    serde_json::from_str(&res_json).map_err(|e| e.to_string())
-}

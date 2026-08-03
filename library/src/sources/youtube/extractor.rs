@@ -162,50 +162,50 @@ pub fn extract_from_browse(body: &Value, source_name: &str) -> Option<(Vec<Track
         .unwrap_or_else(|| "Unknown Playlist".to_string());
 
     let mut tracks = Vec::new();
-    if let Some(section_list) = find_section_list(body) {
-        if let Some(contents) = section_list.get("contents").and_then(|c| c.as_array()) {
-            for section in contents {
-                if let Some(list) = section
-                    .get("itemSectionRenderer")
-                    .and_then(|i| i.get("contents"))
-                    .and_then(|c| c.as_array())
-                    .and_then(|arr| arr.first())
-                    .and_then(|first| first.get("playlistVideoListRenderer"))
-                    .and_then(|p| p.get("contents"))
-                    .and_then(|c| c.as_array())
-                {
-                    for item in list {
-                        if let Some(track) = extract_track(item, source_name) {
-                            tracks.push(track);
-                        }
+    if let Some(section_list) = find_section_list(body)
+        && let Some(contents) = section_list.get("contents").and_then(|c| c.as_array())
+    {
+        for section in contents {
+            if let Some(list) = section
+                .get("itemSectionRenderer")
+                .and_then(|i| i.get("contents"))
+                .and_then(|c| c.as_array())
+                .and_then(|arr| arr.first())
+                .and_then(|first| first.get("playlistVideoListRenderer"))
+                .and_then(|p| p.get("contents"))
+                .and_then(|c| c.as_array())
+            {
+                for item in list {
+                    if let Some(track) = extract_track(item, source_name) {
+                        tracks.push(track);
                     }
                 }
-                if let Some(list) = section
-                    .get("musicShelfRenderer")
-                    .and_then(|s| s.get("contents"))
-                    .and_then(|c| c.as_array())
-                {
-                    for item in list {
-                        if let Some(track) = extract_track(item, source_name) {
-                            tracks.push(track);
-                        }
+            }
+            if let Some(list) = section
+                .get("musicShelfRenderer")
+                .and_then(|s| s.get("contents"))
+                .and_then(|c| c.as_array())
+            {
+                for item in list {
+                    if let Some(track) = extract_track(item, source_name) {
+                        tracks.push(track);
                     }
                 }
-                if let Some(shelf) = section.get("musicPlaylistShelfRenderer") {
-                    if let Some(list) = shelf.get("contents").and_then(|c| c.as_array()) {
-                        for item in list {
-                            if let Some(track) = extract_track(item, source_name) {
-                                tracks.push(track);
-                            }
-                        }
+            }
+            if let Some(shelf) = section.get("musicPlaylistShelfRenderer")
+                && let Some(list) = shelf.get("contents").and_then(|c| c.as_array())
+            {
+                for item in list {
+                    if let Some(track) = extract_track(item, source_name) {
+                        tracks.push(track);
                     }
                 }
             }
         }
     }
 
-    if tracks.is_empty() {
-        if let Some(contents) = body
+    if tracks.is_empty()
+        && let Some(contents) = body
             .get("contents")
             .and_then(|c| c.get("singleColumnBrowseResultsRenderer"))
             .and_then(|s| s.get("tabs"))
@@ -218,40 +218,37 @@ pub fn extract_from_browse(body: &Value, source_name: &str) -> Option<(Vec<Track
             .and_then(|c| c.as_array())
             .and_then(|c| c.first())
             .and_then(|c| c.get("musicPlaylistShelfRenderer"))
-        {
-            if let Some(list) = contents.get("contents").and_then(|c| c.as_array()) {
-                for item in list {
-                    if let Some(track) = extract_track(item, source_name) {
-                        tracks.push(track);
-                    }
-                }
+        && let Some(list) = contents.get("contents").and_then(|c| c.as_array())
+    {
+        for item in list {
+            if let Some(track) = extract_track(item, source_name) {
+                tracks.push(track);
             }
         }
     }
 
-    if tracks.is_empty() {
-        if let Some(list) = find_music_playlist_shelf(body) {
-            for item in list {
-                if let Some(track) = extract_track(item, source_name) {
-                    tracks.push(track);
-                }
+    if tracks.is_empty()
+        && let Some(list) = find_music_playlist_shelf(body)
+    {
+        for item in list {
+            if let Some(track) = extract_track(item, source_name) {
+                tracks.push(track);
             }
         }
     }
 
-    if tracks.is_empty() {
-        if let Some(continuation_contents) = body
+    if tracks.is_empty()
+        && let Some(continuation_contents) = body
             .get("onResponseReceivedActions")
             .and_then(|a| a.as_array())
             .and_then(|arr| arr.first())
             .and_then(|a| a.get("appendContinuationItemsAction"))
             .and_then(|a| a.get("continuationItems"))
             .and_then(|c| c.as_array())
-        {
-            for item in continuation_contents {
-                if let Some(track) = extract_track(item, source_name) {
-                    tracks.push(track);
-                }
+    {
+        for item in continuation_contents {
+            if let Some(track) = extract_track(item, source_name) {
+                tracks.push(track);
             }
         }
     }
@@ -287,10 +284,10 @@ pub fn find_section_list(value: &Value) -> Option<&Value> {
     if let Some(list) = value.get("sectionListRenderer") {
         return Some(list);
     }
-    if let Some(contents) = value.get("contents") {
-        if let Some(list) = find_section_list(contents) {
-            return Some(list);
-        }
+    if let Some(contents) = value.get("contents")
+        && let Some(list) = find_section_list(contents)
+    {
+        return Some(list);
     }
     if let Some(arr) = value.as_array() {
         for item in arr {
@@ -301,10 +298,10 @@ pub fn find_section_list(value: &Value) -> Option<&Value> {
     }
     if let Some(tabs) = value.get("tabs").and_then(|t| t.as_array()) {
         for tab in tabs {
-            if let Some(content) = tab.get("tabRenderer").and_then(|tr| tr.get("content")) {
-                if let Some(list) = find_section_list(content) {
-                    return Some(list);
-                }
+            if let Some(content) = tab.get("tabRenderer").and_then(|tr| tr.get("content"))
+                && let Some(list) = find_section_list(content)
+            {
+                return Some(list);
             }
         }
     }
@@ -419,10 +416,9 @@ pub fn extract_track(item: &Value, source_name: &str) -> Option<Track> {
                             .and_then(|r| r.get("text"))
                             .and_then(|t| t.get("runs"))
                             .and_then(|r| r.as_array())
+                            && let Some(dur) = check_runs(runs)
                         {
-                            if let Some(dur) = check_runs(runs) {
-                                return Some(dur);
-                            }
+                            return Some(dur);
                         }
                     }
                 }
@@ -434,10 +430,9 @@ pub fn extract_track(item: &Value, source_name: &str) -> Option<Track> {
                             .and_then(|r| r.get("text"))
                             .and_then(|t| t.get("runs"))
                             .and_then(|r| r.as_array())
+                            && let Some(dur) = check_runs(runs)
                         {
-                            if let Some(dur) = check_runs(runs) {
-                                return Some(dur);
-                            }
+                            return Some(dur);
                         }
                     }
                 }
@@ -446,10 +441,9 @@ pub fn extract_track(item: &Value, source_name: &str) -> Option<Track> {
                     .get("subtitle")
                     .and_then(|s| s.get("runs"))
                     .and_then(|r| r.as_array())
+                    && let Some(dur) = check_runs(runs)
                 {
-                    if let Some(dur) = check_runs(runs) {
-                        return Some(dur);
-                    }
+                    return Some(dur);
                 }
 
                 None
@@ -473,12 +467,12 @@ pub fn extract_track(item: &Value, source_name: &str) -> Option<Track> {
 }
 
 fn extract_author(renderer: &Value) -> Option<String> {
-    if let Some(subtitle) = renderer.get("subtitle") {
-        if let Some(text) = get_first_subtitle_run(subtitle) {
-            let artist = text.split(" • ").next().unwrap_or(&text).trim();
-            if !artist.is_empty() {
-                return Some(artist.to_string());
-            }
+    if let Some(subtitle) = renderer.get("subtitle")
+        && let Some(text) = get_first_subtitle_run(subtitle)
+    {
+        let artist = text.split(" • ").next().unwrap_or(&text).trim();
+        if !artist.is_empty() {
+            return Some(artist.to_string());
         }
     }
     if let Some(author) = renderer
@@ -505,16 +499,13 @@ fn extract_author(renderer: &Value) -> Option<String> {
         .and_then(|c| c.get(1))
         .and_then(|c| c.get("musicResponsiveListItemFlexColumnRenderer"))
         .and_then(|r| r.get("text"))
+        && let Some(runs) = flex.get("runs").and_then(|r| r.as_array())
+        && let Some(text) = runs
+            .first()
+            .and_then(|r| r.get("text"))
+            .and_then(|t| t.as_str())
     {
-        if let Some(runs) = flex.get("runs").and_then(|r| r.as_array()) {
-            if let Some(text) = runs
-                .first()
-                .and_then(|r| r.get("text"))
-                .and_then(|t| t.as_str())
-            {
-                return Some(text.to_string());
-            }
-        }
+        return Some(text.to_string());
     }
     None
 }
@@ -621,12 +612,11 @@ pub fn extract_from_search(body: &Value, source_name: &str) -> Vec<Track> {
 
         if let Some(tab) = tab_content {
             items = find_music_search_shelf(tab);
-            if items.is_none() {
-                if let Some(split_view) = tab.get("musicSplitViewRenderer") {
-                    if let Some(main_content) = split_view.get("mainContent") {
-                        items = find_music_search_shelf(main_content);
-                    }
-                }
+            if items.is_none()
+                && let Some(split_view) = tab.get("musicSplitViewRenderer")
+                && let Some(main_content) = split_view.get("mainContent")
+            {
+                items = find_music_search_shelf(main_content);
             }
         }
 

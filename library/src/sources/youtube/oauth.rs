@@ -40,45 +40,10 @@ impl YouTubeOAuth {
                     .unwrap_or_default()
                     .to_string();
                 let interval = response["interval"].as_u64().unwrap_or(5);
-                let inner_width = 60;
-                let top_border = format!("  +{}+", "-".repeat(inner_width));
-                let sep_border = format!("  +{}+", "-".repeat(inner_width));
-                let bot_border = format!("  +{}+", "-".repeat(inner_width));
-                let warning = "!!! USE A BURNER ACCOUNT FOR YOUTUBE OAUTH !!!";
-                let warning_pad = inner_width.saturating_sub(warning.len());
-                let warning_left = warning_pad / 2;
-                let warning_right = warning_pad - warning_left;
-                crate::log_println!("\n\x1b[1;33m{}\x1b[0m", top_border);
-                crate::log_println!(
-                    "\x1b[1;33m  |\x1b[0m{:left$}\x1b[1;31m{}\x1b[0m{:right$}\x1b[1;33m|\x1b[0m",
-                    "",
-                    warning,
-                    "",
-                    left = warning_left,
-                    right = warning_right
-                );
-                crate::log_println!("\x1b[1;33m{}\x1b[0m", sep_border);
-                let s1_prefix = " 1. Visit: ";
-                let s1_padding =
-                    inner_width.saturating_sub(s1_prefix.len() + verification_url.len());
-                crate::log_println!(
-                    "\x1b[1;33m  |\x1b[0m\x1b[1;36m{}\x1b[0m\x1b[4;34m{}\x1b[0m{:pad$}\x1b[1;33m|\x1b[0m",
-                    s1_prefix,
-                    verification_url,
-                    "",
-                    pad = s1_padding
-                );
-                let s2_prefix = " 2. Enter code: ";
-                let s2_code = format!(" {} ", user_code);
-                let s2_padding = inner_width.saturating_sub(s2_prefix.len() + s2_code.len());
-                crate::log_println!(
-                    "\x1b[1;33m  |\x1b[0m\x1b[1;36m{}\x1b[0m\x1b[1;42;30m{}\x1b[0m{:pad$}\x1b[1;33m|\x1b[0m",
-                    s2_prefix,
-                    s2_code,
-                    "",
-                    pad = s2_padding
-                );
-                crate::log_println!("\x1b[1;33m{}\x1b[0m\n", bot_border);
+
+                tracing::warn!("YouTube OAuth Login - USE A BURNER ACCOUNT:");
+                tracing::info!("  1. Visit: {}", verification_url);
+                tracing::info!("  2. Enter code: {}", user_code);
                 let oauth = self.clone();
                 tokio::spawn(async move {
                     oauth.poll_for_token(device_code, interval).await;
@@ -140,15 +105,12 @@ impl YouTubeOAuth {
                     if let Some(refresh_token) = response["refresh_token"].as_str() {
                         let mut tokens = self.refresh_tokens.write().await;
                         tokens.push(refresh_token.to_string());
-                        crate::log_println!(
-                            "\x1b[1;32mOAUTH: Token retrieved! Refresh token: {}\x1b[0m",
-                            refresh_token
-                        );
+                        tracing::info!("OAUTH: Token retrieved successfully");
                         break;
                     }
                 }
                 Err(e) => {
-                    crate::log_println!("\x1b[1;31mFailed to fetch OAuth2 token: {}\x1b[0m", e);
+                    tracing::error!("Failed to fetch OAuth2 token: {}", e);
                     break;
                 }
             }

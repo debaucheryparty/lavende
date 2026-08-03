@@ -17,7 +17,17 @@ Because Lavende abstracts away the complexities of WebSocket communication, you 
 | :------------ | :---------------------------------------- | :------- | :------------------------------------------------------------------------ |
 | `sendToShard` | `(guildId: string, payload: any) => void` | Yes      | A function that routes a raw JSON payload to the correct WebSocket shard. |
 | `client`      | `{ id: string, username: string }`        | Yes      | An object containing `{ id, username }` of your bot.                      |
-| `configPath`  | `string`                                  | No       | Path to custom source configuration file. Defaults to `source.json`.      |
+
+### Configuration
+
+Set the source configuration file path before initializing the manager:
+
+```typescript
+import { setConfigPath } from "lavende";
+setConfigPath("./config/lavende.json");
+```
+
+If not set, defaults to `source.json` in the current directory.
 
 ### Example Setup
 
@@ -28,7 +38,7 @@ You can use Lavende in standard JavaScript or heavily-typed TypeScript environme
 
 ```typescript
 import { Client, GatewayIntentBits } from "discord.js";
-import { LavendeManager } from "lavende";
+import { LavendeManager, setConfigPath } from "lavende";
 
 const client = new Client({
   intents: [
@@ -44,8 +54,10 @@ let manager: LavendeManager | null = null;
 client.once("ready", () => {
   if (!client.user) return;
 
+  // Optional: Set custom config path
+  setConfigPath("./config/lavende.json");
+
   manager = new LavendeManager({
-    configPath: "./config/lavende.json",
     sendToShard: (guildId: string, payload: any) => {
       client.guilds.cache.get(guildId)?.shard?.send(payload);
     },
@@ -67,7 +79,7 @@ client.once("ready", () => {
 
 ```javascript
 const { Client, GatewayIntentBits } = require("discord.js");
-const { LavendeManager } = require("lavende");
+const { LavendeManager, setConfigPath } = require("lavende");
 
 const client = new Client({
   intents: [
@@ -81,8 +93,10 @@ const client = new Client({
 let manager = null;
 
 client.once("ready", () => {
+  // Optional: Set custom config path
+  setConfigPath("./config/lavende.json");
+
   manager = new LavendeManager({
-    configPath: "./config/lavende.json",
     sendToShard: (guildId, payload) => {
       client.guilds.cache.get(guildId)?.shard?.send(payload);
     },

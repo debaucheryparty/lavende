@@ -17,14 +17,24 @@ Lavende relies on your Discord client to handle WebSocket communication. You mus
 | :-------------- | :--------------------------------- | :------- | :---------------------------------------------------------------------- |
 | `send_to_shard` | `Callable[[str, dict], Coroutine]` | Yes      | An async function that routes a payload to the correct WebSocket shard. |
 | `client`        | `Dict[str, str]`                   | Yes      | A dictionary containing `"id"` and `"username"` of your bot.            |
-| `config_path`   | `str`                              | No       | Path to custom source configuration file. Defaults to `source.json`.    |
+
+### Configuration
+
+Set the source configuration file path before initializing the manager:
+
+```python
+import lavende
+lavende.set_config_path("./config/lavende.json")
+```
+
+If not set, defaults to `source.json` in the current directory.
 
 ### Example Setup
 
 ```python
 import discord
 from discord.ext import commands
-from lavende import LavendeManager
+from lavende import LavendeManager, set_config_path
 
 bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
 manager = None
@@ -40,8 +50,11 @@ async def send_to_shard(guild_id: str, payload: dict):
 @bot.event
 async def on_ready():
     global manager
+
+    # Optional: Set custom config path
+    set_config_path("./config/lavende.json")
+
     manager = LavendeManager(
-        config_path="./config/lavende.json",
         send_to_shard=send_to_shard,
         client={
             "id": str(bot.user.id),

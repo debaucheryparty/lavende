@@ -267,10 +267,10 @@ impl GaanaSource {
                 .get("seo")
                 .and_then(|v| v.as_str())
                 .or_else(|| item.get("id").and_then(|v| v.as_str()));
-            if let Some(key) = seokey {
-                if let LoadResult::Track(track) = self.load_song(key).await {
-                    results.push(track);
-                }
+            if let Some(key) = seokey
+                && let LoadResult::Track(track) = self.load_song(key).await
+            {
+                results.push(track);
             }
         }
         if results.is_empty() {

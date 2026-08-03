@@ -11,6 +11,7 @@ crate-type = ["cdylib"]
 pyo3 = { version = "0.22", features = ["extension-module", "abi3-py38"] }
 pyo3-async-runtimes = { version = "0.22", features = ["tokio-runtime"] }
 tokio = { version = "1.38", features = ["rt-multi-thread", "macros"] }
+lavende = { path = "../../src/cargo" }
 lavende-core = { path = "../../library" }
 serde_json = "1.0"
 

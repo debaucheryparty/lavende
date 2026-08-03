@@ -25,28 +25,28 @@ pub fn parse_track(json: &Value) -> Option<Track> {
     let title = json.get("title")?.as_str()?.to_owned();
     let artist = json.get("artist")?.get("name")?.as_str()?.to_owned();
     let duration = json.get("duration")?.as_u64()? * 1000;
-    if let Some(readable) = json.get("readable").and_then(|v| v.as_bool()) {
-        if !readable {
-            let countries = json
-                .get("available_countries")
-                .and_then(|v| {
-                    v.as_array()
-                        .map(|a| {
-                            a.iter()
-                                .filter_map(|c| c.as_str())
-                                .collect::<Vec<_>>()
-                                .join(", ")
-                        })
-                        .or_else(|| v.as_str().map(|s| s.to_owned()))
-                })
-                .unwrap_or_default();
-            tracing::debug!(
-                "Deezer track {} ({}) is marked as not readable. Available countries: {}. It might fail unless a fallback is found.",
-                title,
-                id,
-                countries
-            );
-        }
+    if let Some(readable) = json.get("readable").and_then(|v| v.as_bool())
+        && !readable
+    {
+        let countries = json
+            .get("available_countries")
+            .and_then(|v| {
+                v.as_array()
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(|c| c.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    })
+                    .or_else(|| v.as_str().map(|s| s.to_owned()))
+            })
+            .unwrap_or_default();
+        tracing::debug!(
+            "Deezer track {} ({}) is marked as not readable. Available countries: {}. It might fail unless a fallback is found.",
+            title,
+            id,
+            countries
+        );
     }
     let isrc = json
         .get("isrc")
@@ -123,14 +123,14 @@ pub fn parse_recommendation_track(json: &Value) -> Option<Track> {
     let title = json.get("SNG_TITLE")?.as_str()?.to_owned();
     let artist = json.get("ART_NAME")?.as_str()?.to_owned();
     let duration = json.get("DURATION")?.as_u64()? * 1000;
-    if let Some(readable) = json.get("READABLE").and_then(|v| v.as_bool()) {
-        if !readable {
-            tracing::debug!(
-                "Deezer recommendation track {} ({}) is marked as not readable. It might fail unless a fallback is found.",
-                title,
-                id
-            );
-        }
+    if let Some(readable) = json.get("READABLE").and_then(|v| v.as_bool())
+        && !readable
+    {
+        tracing::debug!(
+            "Deezer recommendation track {} ({}) is marked as not readable. It might fail unless a fallback is found.",
+            title,
+            id
+        );
     }
     let isrc = json
         .get("ISRC")

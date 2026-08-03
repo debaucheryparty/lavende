@@ -417,7 +417,11 @@ client.on("messageCreate", async (message) => {
     const currentTrack = player.queue.current;
     if (!currentTrack)
       return message.reply({
-        embeds: [new EmbedBuilder().setDescription("❌ No track is currently playing.")],
+        embeds: [
+          new EmbedBuilder().setDescription(
+            "❌ No track is currently playing.",
+          ),
+        ],
       });
 
     const searchMsg = await message.reply({

@@ -132,35 +132,26 @@ async fn resolve_cdn_url(
     }
     let mut results = json.get("results")?.clone();
     let rights = results.get("RIGHTS");
-    if is_rights_empty(rights) {
-        if let Some(fallback) = results.get("FALLBACK") {
-            if !fallback
-                .get("TRACK_TOKEN")
-                .map(|v| v.is_null())
-                .unwrap_or(true)
-            {
-                let fallback_id = fallback.get("SNG_ID").and_then(|v| {
-                    v.as_str()
-                        .map(|s| s.to_owned())
-                        .or_else(|| v.as_i64().map(|n| n.to_string()))
-                });
-                if let Some(id) = fallback_id {
-                    debug!("Deezer: track {track_id} has no RIGHTS, using FALLBACK {id}");
-                    results = fallback.clone();
-                    let track_token = results.get("TRACK_TOKEN").and_then(|v| v.as_str())?;
-                    return fetch_media_url(
-                        client,
-                        token_tracker,
-                        &tokens,
-                        track_token,
-                        &id,
-                        arl_index,
-                    )
-                    .await;
-                } else {
-                    warn!("Deezer: track {track_id} FALLBACK SNG_ID has unexpected format");
-                }
-            }
+    if is_rights_empty(rights)
+        && let Some(fallback) = results.get("FALLBACK")
+        && !fallback
+            .get("TRACK_TOKEN")
+            .map(|v| v.is_null())
+            .unwrap_or(true)
+    {
+        let fallback_id = fallback.get("SNG_ID").and_then(|v| {
+            v.as_str()
+                .map(|s| s.to_owned())
+                .or_else(|| v.as_i64().map(|n| n.to_string()))
+        });
+        if let Some(id) = fallback_id {
+            debug!("Deezer: track {track_id} has no RIGHTS, using FALLBACK {id}");
+            results = fallback.clone();
+            let track_token = results.get("TRACK_TOKEN").and_then(|v| v.as_str())?;
+            return fetch_media_url(client, token_tracker, &tokens, track_token, &id, arl_index)
+                .await;
+        } else {
+            warn!("Deezer: track {track_id} FALLBACK SNG_ID has unexpected format");
         }
     }
     let track_token = results.get("TRACK_TOKEN").and_then(|v| v.as_str())?;
@@ -280,27 +271,25 @@ pub(super) async fn verify_track_resolvable(
         }
     };
     let rights = results.get("RIGHTS");
-    if is_rights_empty(rights) {
-        if let Some(fallback) = results.get("FALLBACK") {
-            if !fallback
-                .get("TRACK_TOKEN")
-                .map(|v| v.is_null())
-                .unwrap_or(true)
-            {
-                let has_id = fallback.get("SNG_ID").and_then(|v| {
-                    v.as_str()
-                        .map(|s| s.to_owned())
-                        .or_else(|| v.as_i64().map(|n| n.to_string()))
-                });
-                if has_id.is_some() {
-                    results = fallback.clone();
-                } else {
-                    warn!(
-                        "Deezer: track {track_id} FALLBACK SNG_ID has unexpected format: {:?}",
-                        fallback.get("SNG_ID")
-                    );
-                }
-            }
+    if is_rights_empty(rights)
+        && let Some(fallback) = results.get("FALLBACK")
+        && !fallback
+            .get("TRACK_TOKEN")
+            .map(|v| v.is_null())
+            .unwrap_or(true)
+    {
+        let has_id = fallback.get("SNG_ID").and_then(|v| {
+            v.as_str()
+                .map(|s| s.to_owned())
+                .or_else(|| v.as_i64().map(|n| n.to_string()))
+        });
+        if has_id.is_some() {
+            results = fallback.clone();
+        } else {
+            warn!(
+                "Deezer: track {track_id} FALLBACK SNG_ID has unexpected format: {:?}",
+                fallback.get("SNG_ID")
+            );
         }
     }
     let track_token = results

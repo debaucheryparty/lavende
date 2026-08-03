@@ -56,11 +56,11 @@ impl TwitchGqlClient {
             .filter_map(|v| v.to_str().ok().map(str::to_owned))
             .collect();
         for cookie in &cookie_headers {
-            if cookie.contains("unique_id=") {
-                if let Some(id) = extract_between(cookie, "unique_id=", ";") {
-                    *self.device_id.write().await = Some(id.trim().to_string());
-                    break;
-                }
+            if cookie.contains("unique_id=")
+                && let Some(id) = extract_between(cookie, "unique_id=", ";")
+            {
+                *self.device_id.write().await = Some(id.trim().to_string());
+                break;
             }
         }
         let body = match resp.text().await {

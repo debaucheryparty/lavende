@@ -32,7 +32,7 @@ pub fn user_pattern() -> &'static Regex {
 
 pub fn parse_tracks(data: &Value) -> Vec<Track> {
     data.as_array()
-        .map(|arr| arr.iter().filter_map(|item| build_track(item)).collect())
+        .map(|arr| arr.iter().filter_map(build_track).collect())
         .unwrap_or_default()
 }
 

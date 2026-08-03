@@ -208,30 +208,39 @@ pub mod linear {
         }
         pub fn process(&mut self, input: &[i16], output: &mut PooledBuffer) {
             let num_frames = input.len() / self.channels;
-            let est_output = ((num_frames as f32 / self.ratio) as usize + 2) * self.channels;
+            let num_frames_f = num_frames as f32;
+            let est_output = ((num_frames_f / self.ratio) as usize + 2) * self.channels;
             output.reserve(est_output);
-            while self.index < num_frames as f32 {
+
+            while self.index < num_frames_f {
                 let idx = self.index as usize;
                 let fract = self.index.fract();
+                let one_minus_fract = 1.0 - fract;
+
                 for c in 0..self.channels {
                     let s1 = if idx == 0 {
-                        self.last_samples[c]
+                        self.last_samples[c] as f32
                     } else {
-                        input[(idx - 1) * self.channels + c]
-                    } as f32;
+                        input[(idx - 1) * self.channels + c] as f32
+                    };
                     let s2 = if idx < num_frames {
-                        input[idx * self.channels + c]
+                        input[idx * self.channels + c] as f32
                     } else {
-                        input[(num_frames - 1) * self.channels + c]
-                    } as f32;
-                    output.push((s1 * (1.0 - fract) + s2 * fract) as i16);
+                        input[(num_frames - 1) * self.channels + c] as f32
+                    };
+                    output.push((s1 * one_minus_fract + s2 * fract) as i16);
                 }
                 self.index += self.ratio;
             }
-            self.index -= num_frames as f32;
+            self.index -= num_frames_f;
             if num_frames > 0 {
-                for c in 0..self.channels {
-                    self.last_samples[c] = input[(num_frames - 1) * self.channels + c];
+                let base = (num_frames - 1) * self.channels;
+                unsafe {
+                    std::ptr::copy_nonoverlapping(
+                        input.as_ptr().add(base),
+                        self.last_samples.as_mut_ptr(),
+                        self.channels,
+                    );
                 }
             }
         }
@@ -261,50 +270,57 @@ pub mod hermite {
                 last_samples: vec![0; channels],
             }
         }
-        #[inline]
+        #[inline(always)]
         fn hermite(p: [f32; 4], t: f32) -> f32 {
-            let c0 = p[1];
             let c1 = 0.5 * (p[2] - p[0]);
             let c2 = p[0] - 2.5 * p[1] + 2.0 * p[2] - 0.5 * p[3];
             let c3 = 0.5 * (p[3] - p[0]) + 1.5 * (p[1] - p[2]);
-            ((c3 * t + c2) * t + c1) * t + c0
+            ((c3 * t + c2) * t + c1) * t + p[1]
         }
         pub fn process(&mut self, input: &[i16], output: &mut PooledBuffer) {
             let num_frames = input.len() / self.channels;
             let num_frames_f = num_frames as f32;
             let est_output = ((num_frames_f / self.ratio) as usize + 2) * self.channels;
             output.reserve(est_output);
+
+            let last_frame_base = (num_frames - 1) * self.channels;
+
             while self.index < num_frames_f {
                 let idx = self.index as usize;
                 let t = self.index.fract();
+                let base_idx = idx * self.channels;
+
                 for ch in 0..self.channels {
-                    let base_idx = idx * self.channels + ch;
                     let p0 = if idx == 0 {
-                        self.last_samples[ch]
+                        self.last_samples[ch] as f32
                     } else {
-                        input[base_idx - self.channels]
-                    } as f32;
-                    let p1 = input[base_idx] as f32;
+                        input[base_idx - self.channels + ch] as f32
+                    };
+                    let p1 = input[base_idx + ch] as f32;
                     let p2 = if idx + 1 < num_frames {
-                        input[base_idx + self.channels]
+                        input[base_idx + self.channels + ch] as f32
                     } else {
-                        input[(num_frames - 1) * self.channels + ch]
-                    } as f32;
+                        input[last_frame_base + ch] as f32
+                    };
                     let p3 = if idx + 2 < num_frames {
-                        input[base_idx + 2 * self.channels]
+                        input[base_idx + 2 * self.channels + ch] as f32
                     } else {
-                        input[(num_frames - 1) * self.channels + ch]
-                    } as f32;
+                        input[last_frame_base + ch] as f32
+                    };
                     let s = Self::hermite([p0, p1, p2, p3], t)
                         .clamp(i16::MIN as f32, i16::MAX as f32) as i16;
                     output.push(s);
                 }
                 self.index += self.ratio;
             }
-            self.index -= num_frames as f32;
+            self.index -= num_frames_f;
             if num_frames > 0 {
-                for ch in 0..self.channels {
-                    self.last_samples[ch] = input[(num_frames - 1) * self.channels + ch];
+                unsafe {
+                    std::ptr::copy_nonoverlapping(
+                        input.as_ptr().add(last_frame_base),
+                        self.last_samples.as_mut_ptr(),
+                        self.channels,
+                    );
                 }
             }
         }

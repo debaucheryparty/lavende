@@ -165,35 +165,35 @@ impl SourcePlugin for PandoraSource {
             return self.get_recommendations(id).await;
         }
         let input = identifier.trim();
-        if let Some(caps) = url_regex().captures(input) {
-            if let Some(id_match) = caps.name("id").or_else(|| caps.name("id2")) {
-                let id = id_match.as_str();
-                if id.is_empty() {
-                    return LoadResult::Empty {};
+        if let Some(caps) = url_regex().captures(input)
+            && let Some(id_match) = caps.name("id").or_else(|| caps.name("id2"))
+        {
+            let id = id_match.as_str();
+            if id.is_empty() {
+                return LoadResult::Empty {};
+            }
+            if let Some(tr_id) = id.strip_prefix("TR")
+                && !tr_id.is_empty()
+            {
+                return self.fetch_track(id).await;
+            }
+            if let Some(al_id) = id.strip_prefix("AL")
+                && !al_id.is_empty()
+            {
+                return self.get_album(id).await;
+            }
+            if let Some(ar_id) = id.strip_prefix("AR")
+                && !ar_id.is_empty()
+            {
+                if input.contains("/artist/all-songs/") {
+                    return self.get_artist_all_songs(id).await;
                 }
-                if let Some(tr_id) = id.strip_prefix("TR") {
-                    if !tr_id.is_empty() {
-                        return self.fetch_track(id).await;
-                    }
-                }
-                if let Some(al_id) = id.strip_prefix("AL") {
-                    if !al_id.is_empty() {
-                        return self.get_album(id).await;
-                    }
-                }
-                if let Some(ar_id) = id.strip_prefix("AR") {
-                    if !ar_id.is_empty() {
-                        if input.contains("/artist/all-songs/") {
-                            return self.get_artist_all_songs(id).await;
-                        }
-                        return self.get_artist(id).await;
-                    }
-                }
-                if let Some(pl_id) = id.strip_prefix("PL:") {
-                    if !pl_id.is_empty() {
-                        return self.get_playlist(id).await;
-                    }
-                }
+                return self.get_artist(id).await;
+            }
+            if let Some(pl_id) = id.strip_prefix("PL:")
+                && !pl_id.is_empty()
+            {
+                return self.get_playlist(id).await;
             }
         }
         LoadResult::Empty {}

@@ -429,7 +429,7 @@ pub mod session {
                             }),
                         };
                         if let Ok(json) = serde_json::to_string(&hb)
-                            && tx.send(Message::Text(json.into())).is_err()
+                            && tx.send(Message::Text(json)).is_err()
                         {
                             break;
                         }
@@ -1298,7 +1298,7 @@ pub mod session {
             fn send_json(&self, op: u8, d: Value) {
                 match serde_json::to_string(&GatewayPayload { op, seq: None, d }) {
                     Ok(json) => {
-                        let _ = self.tx.send(Message::Text(json.into()));
+                        let _ = self.tx.send(Message::Text(json));
                     }
                     Err(e) => {
                         warn!("[{}] JSON serialization failed: {e}", self.gateway.guild_id);
@@ -1308,7 +1308,7 @@ pub mod session {
             fn send_binary(&self, op: u8, payload: &[u8]) {
                 let mut b = vec![op];
                 b.extend_from_slice(payload);
-                let _ = self.tx.send(Message::Binary(b.into()));
+                let _ = self.tx.send(Message::Binary(b));
             }
         }
         impl<'a> Drop for SessionState<'a> {
@@ -1534,9 +1534,7 @@ pub mod session {
                     1,
                 )
             };
-            let _ = ws_tx.send(Message::Text(
-                serde_json::to_string(&handshake).unwrap().into(),
-            ));
+            let _ = ws_tx.send(Message::Text(serde_json::to_string(&handshake).unwrap()));
             let (speaking_tx, mut speaking_rx) = unbounded_channel::<bool>();
             state.set_speaking_tx(speaking_tx);
             let outcome = loop {
@@ -1600,7 +1598,7 @@ pub mod session {
                 }),
             };
             if let Ok(json) = serde_json::to_string(&msg) {
-                let _ = tx.send(Message::Text(json.into()));
+                let _ = tx.send(Message::Text(json));
             }
         }
         fn emit_close(&self, code: u16, reason: String) {

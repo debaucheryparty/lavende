@@ -28,17 +28,17 @@ impl YouTubeCipherManager {
     pub async fn get_cached_player_script(&self) -> AnyResult<CachedPlayerScript> {
         {
             let cache = self.cached_player_script.read().await;
-            if let Some(script) = &*cache {
-                if Instant::now() < script.expire_timestamp_ms {
-                    return Ok(script.clone());
-                }
+            if let Some(script) = &*cache
+                && Instant::now() < script.expire_timestamp_ms
+            {
+                return Ok(script.clone());
             }
         }
         let mut cache = self.cached_player_script.write().await;
-        if let Some(script) = &*cache {
-            if Instant::now() < script.expire_timestamp_ms {
-                return Ok(script.clone());
-            }
+        if let Some(script) = &*cache
+            && Instant::now() < script.expire_timestamp_ms
+        {
+            return Ok(script.clone());
         }
         let script = self.get_player_script().await?;
         *cache = Some(script.clone());
@@ -99,14 +99,11 @@ impl YouTubeCipherManager {
                 .json(&json!({ "player_url": source_url }))
                 .send()
                 .await
+                && res.status() == 200
+                && let Ok(body) = res.json::<Value>().await
+                && let Some(sts) = body.get("sts").and_then(|v| v.as_str())
             {
-                if res.status() == 200 {
-                    if let Ok(body) = res.json::<Value>().await {
-                        if let Some(sts) = body.get("sts").and_then(|v| v.as_str()) {
-                            return Ok(sts.to_string());
-                        }
-                    }
-                }
+                return Ok(sts.to_string());
             }
         }
         let res = self.client.get(source_url).send().await?;

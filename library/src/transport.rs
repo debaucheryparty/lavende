@@ -59,6 +59,12 @@ pub mod udp {
         pub sequence: u16,
         pub timestamp: u32,
     }
+    impl Default for RtpState {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
     impl RtpState {
         pub fn new() -> Self {
             Self {

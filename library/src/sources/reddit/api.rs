@@ -52,10 +52,10 @@ pub async fn discover_audio_asset(
             .header(reqwest::header::USER_AGENT, USER_AGENT)
             .send()
             .await;
-        if let Ok(res) = resp {
-            if res.status().is_success() {
-                return Some(probe_url);
-            }
+        if let Ok(res) = resp
+            && res.status().is_success()
+        {
+            return Some(probe_url);
         }
     }
     None

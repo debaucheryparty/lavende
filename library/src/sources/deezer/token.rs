@@ -44,10 +44,10 @@ impl DeezerTokenTracker {
     pub async fn get_token_at(&self, index: usize) -> Option<DeezerTokens> {
         {
             let guard = self.tokens.lock().await;
-            if let Some(tokens) = &guard[index] {
-                if Instant::now() < tokens.expire_at {
-                    return Some(tokens.clone());
-                }
+            if let Some(tokens) = &guard[index]
+                && Instant::now() < tokens.expire_at
+            {
+                return Some(tokens.clone());
             }
         }
         self.refresh_session(index).await

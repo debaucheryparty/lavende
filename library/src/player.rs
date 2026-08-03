@@ -257,19 +257,37 @@ impl Player {
             *self.event_sender.lock().await = Some(events.clone());
         }
         self.stop_signal.store(false, Ordering::Release);
-        fn get_source_manager_arc() -> Arc<crate::sources::manager::SourceManager> {
-            let guard = crate::get_source_manager().lock().unwrap();
-            guard.as_ref().unwrap().clone()
-        }
-        let sm_arc = get_source_manager_arc();
+        let sm_arc = {
+            let guard = match crate::get_source_manager().lock() {
+                Ok(g) => g,
+                Err(_) => {
+                    events.send(
+                        "error",
+                        json!({ "message": "Failed to acquire source manager lock" }),
+                    );
+                    return Ok(());
+                }
+            };
+            match guard.as_ref() {
+                Some(sm) => sm.clone(),
+                None => {
+                    events.send(
+                        "error",
+                        json!({ "message": "Source manager not initialized" }),
+                    );
+                    return Ok(());
+                }
+            }
+        };
         let player_config = sm_arc.player_config.clone();
 
         {
             let mut task_guard = self.track_task.lock().await;
-            if let Some(task) = task_guard.take() {
-                if !player_config.transitions.gapless && !player_config.transitions.crossfade {
-                    task.abort();
-                }
+            if let Some(task) = task_guard.take()
+                && !player_config.transitions.gapless
+                && !player_config.transitions.crossfade
+            {
+                task.abort();
             }
         }
         {
@@ -409,7 +427,16 @@ impl Player {
         }
     }
     pub async fn stop(&self) {
-        self.stop_signal.store(true, Ordering::Release);
+        self.stop_signal.store(true, Ordering::SeqCst);
+        if let Some(handle) = &*self.track_handle.lock().await {
+            handle.stop();
+        }
+        {
+            let mut cancel_guard = self.position_tracking_cancel.lock().await;
+            if let Some(cancel) = cancel_guard.take() {
+                cancel.cancel();
+            }
+        }
         {
             let mut task_guard = self.track_task.lock().await;
             if let Some(task) = task_guard.take() {
@@ -422,15 +449,7 @@ impl Player {
                 cancel.cancel();
             }
         }
-        {
-            let mut cancel_guard = self.position_tracking_cancel.lock().await;
-            if let Some(cancel) = cancel_guard.take() {
-                cancel.cancel();
-            }
-        }
-        if let Some(handle) = &*self.track_handle.lock().await {
-            handle.stop();
-        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
         let mut mixer_guard = self.mixer.lock();
         mixer_guard.stop_all();
     }

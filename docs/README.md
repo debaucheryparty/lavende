@@ -52,6 +52,7 @@ Navigate to your language of choice to explore detailed integration guides, API 
 This project is an independent open-source initiative. It is not intended to compete with, criticize, or harm any existing projects. We have great respect for the work done by the teams behind [Lavalink](https://github.com/lavalink-devs/Lavalink), [NodeLink](https://github.com/PerformanC/NodeLink), and [lavalink-client](https://github.com/tomato6966/lavalink-client), which have been instrumental in the Discord music bot ecosystem.
 
 **Credits:**
+
 - [Lavalink](https://github.com/lavalink-devs/Lavalink) - For inspiration and protocol design
 - [NodeLink](https://github.com/PerformanC/NodeLink)- For source code reference, all due credits to the NodeLink team
 - [lavalink-client](https://github.com/tomato6966/lavalink-client) - We have ported and used this in Lavende, full credits to the original authors

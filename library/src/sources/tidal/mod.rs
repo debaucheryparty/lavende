@@ -256,12 +256,12 @@ impl TidalSource {
     }
 
     async fn get_recommendations(&self, id: &str) -> LoadResult {
-        if let Ok(data) = self.client.get_json(&format!("/tracks/{id}")).await {
-            if let Some(mix_id) = data.pointer("/mixes/TRACK_MIX").and_then(|v| v.as_str()) {
-                return self
-                    .get_mix(mix_id, Some("Tidal Recommendations".to_string()))
-                    .await;
-            }
+        if let Ok(data) = self.client.get_json(&format!("/tracks/{id}")).await
+            && let Some(mix_id) = data.pointer("/mixes/TRACK_MIX").and_then(|v| v.as_str())
+        {
+            return self
+                .get_mix(mix_id, Some("Tidal Recommendations".to_string()))
+                .await;
         }
         LoadResult::Empty {}
     }

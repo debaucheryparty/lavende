@@ -78,7 +78,7 @@ pub async fn acquire_metadata_packet(
         .and_then(|u| u.as_str())
         .or_else(|| post_data.get("thumbnail").and_then(|v| v.as_str()))
         .filter(|s| s.starts_with("http"))
-        .map(|s| unescape_html(s));
+        .map(unescape_html);
     let media_spec = match post_data
         .get("secure_media")
         .and_then(|sm| sm.get("reddit_video"))

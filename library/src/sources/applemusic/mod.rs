@@ -59,10 +59,10 @@ impl AppleMusicSource {
             Some(d) => d,
             None => return LoadResult::Empty {},
         };
-        if let Some(item) = data.pointer("/data/0") {
-            if let Some(track) = extractor::build_track(item, None) {
-                return LoadResult::Track(track);
-            }
+        if let Some(item) = data.pointer("/data/0")
+            && let Some(track) = extractor::build_track(item, None)
+        {
+            return LoadResult::Track(track);
         }
         LoadResult::Empty {}
     }

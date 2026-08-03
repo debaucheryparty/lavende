@@ -549,10 +549,10 @@ pub async fn player_request(
     if let Some(p) = profile.params {
         payload["params"] = json!(p);
     }
-    if let Some(att) = profile.attestation_request {
-        if let Ok(v) = serde_json::from_str::<Value>(att) {
-            payload["attestationRequest"] = v;
-        }
+    if let Some(att) = profile.attestation_request
+        && let Ok(v) = serde_json::from_str::<Value>(att)
+    {
+        payload["attestationRequest"] = v;
     }
     if let Some(sts) = sig_timestamp {
         payload["playbackContext"] = json!({

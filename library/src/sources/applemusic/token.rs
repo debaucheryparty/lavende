@@ -31,10 +31,10 @@ impl AppleMusicTokenTracker {
     pub async fn get_token(&self) -> Option<String> {
         {
             let lock = self.token.read().await;
-            if let Some(token) = &*lock {
-                if self.is_valid(token) {
-                    return Some(token.access_token.clone());
-                }
+            if let Some(token) = &*lock
+                && self.is_valid(token)
+            {
+                return Some(token.access_token.clone());
             }
         }
         self.refresh_token().await

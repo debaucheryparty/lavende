@@ -39,7 +39,7 @@ pub mod layer {
             let fade_killed = self
                 .fade
                 .as_ref()
-                .map_or(false, |f| f.is_finished() && f.target_vol == 0.0);
+                .is_some_and(|f| f.is_finished() && f.target_vol == 0.0);
             fade_killed || (self.finished && self.ring_buffer.is_empty())
         }
         pub fn accumulate(&mut self, acc: &mut [i32]) {
@@ -100,11 +100,13 @@ pub mod mixer {
     }
     impl AudioMixer {
         pub fn new() -> Self {
+            let mut acc_buf = Vec::with_capacity(1920);
+            acc_buf.resize(1920, 0);
             Self {
                 layers: HashMap::new(),
                 max_layers: MAX_LAYERS,
                 enabled: true,
-                acc_buf: Vec::with_capacity(1920),
+                acc_buf,
             }
         }
         pub fn add_layer(
@@ -133,10 +135,11 @@ pub mod mixer {
                 return;
             }
             let out_len = main_frame.len();
-            if self.acc_buf.len() != out_len {
+            if self.acc_buf.len() < out_len {
                 self.acc_buf.resize(out_len, 0);
             }
-            for (acc, &sample) in self.acc_buf.iter_mut().zip(main_frame.iter()) {
+            let acc_slice = &mut self.acc_buf[..out_len];
+            for (acc, &sample) in acc_slice.iter_mut().zip(main_frame.iter()) {
                 *acc = sample as i32;
             }
             self.layers.retain(|_, layer| {
@@ -144,9 +147,9 @@ pub mod mixer {
                 !layer.is_dead()
             });
             for layer in self.layers.values_mut() {
-                layer.accumulate(&mut self.acc_buf);
+                layer.accumulate(acc_slice);
             }
-            for (out, &sum) in main_frame.iter_mut().zip(self.acc_buf.iter()) {
+            for (out, &sum) in main_frame.iter_mut().zip(acc_slice.iter()) {
                 *out = sum.clamp(i16::MIN as i32, i16::MAX as i32) as i16;
             }
         }
@@ -215,9 +218,11 @@ pub mod mixer {
     }
     impl Mixer {
         pub fn new(_sample_rate: u32) -> Self {
+            let mut mix_buf = Vec::with_capacity(1920);
+            mix_buf.resize(1920, 0);
             Self {
                 tracks: Vec::new(),
-                mix_buf: Vec::with_capacity(1920),
+                mix_buf,
                 audio_mixer: AudioMixer::new(),
                 opus_passthrough_track: None,
                 stuck_detector: Arc::new(StuckDetector::new(10_000)),
@@ -318,136 +323,279 @@ pub mod mixer {
             for track in self.tracks.iter_mut() {
                 track
                     .state
-                    .store(PlaybackState::Stopped as u8, Ordering::Release);
+                    .store(PlaybackState::Stopped as u8, Ordering::SeqCst);
             }
             self.tracks.clear();
+            self.audio_mixer.layers.clear();
             self.audio_mixer.enabled = false;
+            self.mix_buf.clear();
         }
         pub fn mix(&mut self, buf: &mut [i16]) -> bool {
             let out_len = buf.len();
-            if self.mix_buf.len() != out_len {
+
+            self.tracks
+                .retain(|t| t.state.load(Ordering::Relaxed) != PlaybackState::Stopped as u8);
+
+            let active_tracks: Vec<usize> = self
+                .tracks
+                .iter()
+                .enumerate()
+                .filter(|(_, t)| {
+                    let state = PlaybackState::from(t.state.load(Ordering::Relaxed));
+                    !matches!(state, PlaybackState::Paused | PlaybackState::Stopped)
+                })
+                .map(|(i, _)| i)
+                .collect();
+
+            if active_tracks.is_empty() {
+                self.audio_mixer.mix(buf);
+                return !self.audio_mixer.layers.is_empty();
+            }
+
+            if active_tracks.len() == 1 && self.audio_mixer.layers.is_empty() {
+                let has_audio = self.process_single_track(active_tracks[0], buf);
+                self.audio_mixer.mix(buf);
+                return has_audio;
+            }
+
+            if self.mix_buf.len() < out_len {
                 self.mix_buf.resize(out_len, 0);
             }
-            self.mix_buf.fill(0);
-            self.tracks
-                .retain(|t| t.state.load(Ordering::Acquire) != PlaybackState::Stopped as u8);
+            unsafe {
+                std::ptr::write_bytes(self.mix_buf.as_mut_ptr(), 0, out_len);
+            }
+
             let mut has_audio = false;
-            for track in self.tracks.iter_mut() {
-                let state = PlaybackState::from(track.state.load(Ordering::Acquire));
-                if matches!(state, PlaybackState::Paused | PlaybackState::Stopped) {
-                    continue;
-                }
-                let vol_f = f32::from_bits(track.volume.load(Ordering::Acquire));
-                let (fade_mult, should_remove_fade) = if let Some(fade) = &mut track.fade {
-                    let v = fade.current_vol(TARGET_SAMPLE_RATE as usize / (1000 / 20));
-                    if fade.is_finished() && fade.target_vol == 0.0 {
-                        track
-                            .state
-                            .store(PlaybackState::Stopped as u8, Ordering::Release);
-                        continue;
-                    }
-                    (v, fade.is_finished())
-                } else {
-                    (1.0, false)
-                };
-                if should_remove_fade {
-                    track.fade = None;
-                }
-                let effective_vol = vol_f * fade_mult;
-                if (effective_vol - track.flow.volume.current_volume()).abs() > 0.001 {
-                    track.flow.volume.set_volume_instant(effective_vol);
-                }
-                if state == PlaybackState::Stopping && !track.flow.tape.is_ramping() {
-                    track.flow.tape.tape_to(
-                        track.config.tape.tape_stop_duration_ms as f32,
-                        false,
-                        track.config.tape.curve,
-                    );
-                } else if state == PlaybackState::Starting && !track.flow.tape.is_ramping() {
-                    track.flow.tape.tape_to(
-                        track.config.tape.tape_stop_duration_ms as f32,
-                        true,
-                        track.config.tape.curve,
-                    );
-                }
-                let mut filled = 0usize;
-                if track.pending_pos < track.pending.len() {
-                    let n = (out_len - filled).min(track.pending.len() - track.pending_pos);
-                    for (acc, &s) in self.mix_buf[filled..filled + n]
-                        .iter_mut()
-                        .zip(&track.pending[track.pending_pos..track.pending_pos + n])
-                    {
-                        *acc += s as i32;
-                    }
-                    track.pending_pos += n;
-                    filled += n;
-                    if track.pending_pos >= track.pending.len() {
-                        track.pending.clear();
-                        track.pending_pos = 0;
-                    }
-                }
-                'pull: while filled < out_len && !track.finished {
-                    match track.flow.try_pop_frame() {
-                        Ok(Some(frame)) => {
-                            let n = frame.len().min(out_len - filled);
-                            for (acc, &s) in
-                                self.mix_buf[filled..filled + n].iter_mut().zip(&frame[..n])
-                            {
-                                *acc += s as i32;
-                            }
-                            if n < frame.len() {
-                                track.pending.extend_from_slice(&frame[n..]);
-                                track.pending_pos = 0;
-                            }
-                            filled += n;
-                            crate::audio::buffer::release_buffer(frame);
-                        }
-                        Ok(None) => break 'pull,
-                        Err(_) => {
-                            track.finished = true;
-                            break 'pull;
-                        }
-                    }
-                }
-                if filled > 0 {
+            for &track_idx in &active_tracks {
+                if self.process_track_to_mix(track_idx, out_len) {
                     has_audio = true;
-                    track
-                        .position
-                        .fetch_add(filled as u64 / MIXER_CHANNELS as u64, Ordering::Relaxed);
-                    track.is_buffering.store(false, Ordering::Release);
-                    self.stuck_detector.record_frame_received();
-                } else if !track.finished {
-                    track.is_buffering.store(true, Ordering::Release);
-                }
-                if track.finished && track.pending.is_empty() && !track.flow.tape.is_active() {
-                    track
-                        .state
-                        .store(PlaybackState::Stopped as u8, Ordering::Release);
-                }
-                if track.flow.tape.check_ramp_completed() {
-                    match state {
-                        PlaybackState::Stopping => {
-                            track
-                                .state
-                                .store(PlaybackState::Paused as u8, Ordering::Release);
-                        }
-                        PlaybackState::Starting => {
-                            track
-                                .state
-                                .store(PlaybackState::Playing as u8, Ordering::Release);
-                        }
-                        _ => {}
-                    }
                 }
             }
-            for (out, &sum) in buf.iter_mut().zip(self.mix_buf.iter()) {
-                *out = sum.clamp(i16::MIN as i32, i16::MAX as i32) as i16;
+
+            let mix_slice = &self.mix_buf[..out_len];
+            for i in 0..out_len {
+                buf[i] = mix_slice[i].clamp(i16::MIN as i32, i16::MAX as i32) as i16;
             }
+
             self.audio_mixer.mix(buf);
             if !self.audio_mixer.layers.is_empty() {
                 has_audio = true;
             }
             has_audio
+        }
+
+        fn process_single_track(&mut self, track_idx: usize, buf: &mut [i16]) -> bool {
+            let track = &mut self.tracks[track_idx];
+            let state_raw = track.state.load(Ordering::Relaxed);
+            let state = PlaybackState::from(state_raw);
+
+            let vol_raw = track.volume.load(Ordering::Relaxed);
+            let vol_f = f32::from_bits(vol_raw);
+
+            let (fade_mult, should_remove_fade) = if let Some(fade) = &mut track.fade {
+                let v = fade.current_vol(TARGET_SAMPLE_RATE as usize / (1000 / 20));
+                if fade.is_finished() && fade.target_vol == 0.0 {
+                    track
+                        .state
+                        .store(PlaybackState::Stopped as u8, Ordering::Relaxed);
+                    buf.fill(0);
+                    return false;
+                }
+                (v, fade.is_finished())
+            } else {
+                (1.0, false)
+            };
+
+            if should_remove_fade {
+                track.fade = None;
+            }
+
+            let effective_vol = vol_f * fade_mult;
+            if (effective_vol - track.flow.volume.current_volume()).abs() > 0.001 {
+                track.flow.volume.set_volume_instant(effective_vol);
+            }
+
+            if state == PlaybackState::Stopping && !track.flow.tape.is_ramping() {
+                track.flow.tape.tape_to(
+                    track.config.tape.tape_stop_duration_ms as f32,
+                    false,
+                    track.config.tape.curve,
+                );
+            } else if state == PlaybackState::Starting && !track.flow.tape.is_ramping() {
+                track.flow.tape.tape_to(
+                    track.config.tape.tape_stop_duration_ms as f32,
+                    true,
+                    track.config.tape.curve,
+                );
+            }
+
+            let buf_len = buf.len();
+            let mut filled = 0usize;
+
+            if track.pending_pos < track.pending.len() {
+                let n = buf_len.min(track.pending.len() - track.pending_pos);
+                unsafe {
+                    std::ptr::copy_nonoverlapping(
+                        track.pending.as_ptr().add(track.pending_pos),
+                        buf.as_mut_ptr(),
+                        n,
+                    );
+                }
+                track.pending_pos += n;
+                filled = n;
+                if track.pending_pos >= track.pending.len() {
+                    track.pending.clear();
+                    track.pending_pos = 0;
+                }
+            }
+
+            while filled < buf_len && !track.finished {
+                match track.flow.try_pop_frame() {
+                    Ok(Some(frame)) => {
+                        let frame_len = frame.len();
+                        let n = frame_len.min(buf_len - filled);
+                        unsafe {
+                            std::ptr::copy_nonoverlapping(
+                                frame.as_ptr(),
+                                buf.as_mut_ptr().add(filled),
+                                n,
+                            );
+                        }
+                        if n < frame_len {
+                            track.pending.extend_from_slice(&frame[n..]);
+                            track.pending_pos = 0;
+                        }
+                        filled += n;
+                        crate::audio::buffer::release_buffer(frame);
+                    }
+                    Ok(None) => break,
+                    Err(_) => {
+                        track.finished = true;
+                        break;
+                    }
+                }
+            }
+
+            if filled > 0 {
+                track
+                    .position
+                    .fetch_add(filled as u64 / MIXER_CHANNELS as u64, Ordering::Relaxed);
+                track.is_buffering.store(false, Ordering::Relaxed);
+                self.stuck_detector.record_frame_received();
+                if filled < buf_len {
+                    unsafe {
+                        std::ptr::write_bytes(buf.as_mut_ptr().add(filled), 0, buf_len - filled);
+                    }
+                }
+                true
+            } else {
+                if !track.finished {
+                    track.is_buffering.store(true, Ordering::Relaxed);
+                }
+                buf.fill(0);
+                false
+            }
+        }
+
+        fn process_track_to_mix(&mut self, track_idx: usize, out_len: usize) -> bool {
+            let track = &mut self.tracks[track_idx];
+            let state_raw = track.state.load(Ordering::Relaxed);
+            let state = PlaybackState::from(state_raw);
+
+            let vol_raw = track.volume.load(Ordering::Relaxed);
+            let vol_f = f32::from_bits(vol_raw);
+
+            let (fade_mult, should_remove_fade) = if let Some(fade) = &mut track.fade {
+                let v = fade.current_vol(TARGET_SAMPLE_RATE as usize / (1000 / 20));
+                if fade.is_finished() && fade.target_vol == 0.0 {
+                    track
+                        .state
+                        .store(PlaybackState::Stopped as u8, Ordering::Relaxed);
+                    return false;
+                }
+                (v, fade.is_finished())
+            } else {
+                (1.0, false)
+            };
+
+            if should_remove_fade {
+                track.fade = None;
+            }
+
+            let effective_vol = vol_f * fade_mult;
+            if (effective_vol - track.flow.volume.current_volume()).abs() > 0.001 {
+                track.flow.volume.set_volume_instant(effective_vol);
+            }
+
+            if state == PlaybackState::Stopping && !track.flow.tape.is_ramping() {
+                track.flow.tape.tape_to(
+                    track.config.tape.tape_stop_duration_ms as f32,
+                    false,
+                    track.config.tape.curve,
+                );
+            } else if state == PlaybackState::Starting && !track.flow.tape.is_ramping() {
+                track.flow.tape.tape_to(
+                    track.config.tape.tape_stop_duration_ms as f32,
+                    true,
+                    track.config.tape.curve,
+                );
+            }
+
+            let mut filled = 0usize;
+
+            if track.pending_pos < track.pending.len() {
+                let n = out_len.min(track.pending.len() - track.pending_pos);
+                let pending_slice = &track.pending[track.pending_pos..track.pending_pos + n];
+                let mix_slice = &mut self.mix_buf[..n];
+                for i in 0..n {
+                    mix_slice[i] += pending_slice[i] as i32;
+                }
+                track.pending_pos += n;
+                filled = n;
+                if track.pending_pos >= track.pending.len() {
+                    track.pending.clear();
+                    track.pending_pos = 0;
+                }
+            }
+
+            while filled < out_len && !track.finished {
+                match track.flow.try_pop_frame() {
+                    Ok(Some(frame)) => {
+                        let frame_len = frame.len();
+                        let n = frame_len.min(out_len - filled);
+                        let frame_slice = &frame[..n];
+                        let mix_slice = &mut self.mix_buf[filled..filled + n];
+                        for i in 0..n {
+                            mix_slice[i] += frame_slice[i] as i32;
+                        }
+                        if n < frame_len {
+                            track.pending.extend_from_slice(&frame[n..]);
+                            track.pending_pos = 0;
+                        }
+                        filled += n;
+                        crate::audio::buffer::release_buffer(frame);
+                    }
+                    Ok(None) => break,
+                    Err(_) => {
+                        track.finished = true;
+                        break;
+                    }
+                }
+            }
+
+            if filled > 0 {
+                track
+                    .position
+                    .fetch_add(filled as u64 / MIXER_CHANNELS as u64, Ordering::Relaxed);
+                track.is_buffering.store(false, Ordering::Relaxed);
+                self.stuck_detector.record_frame_received();
+                true
+            } else {
+                if !track.finished {
+                    track.is_buffering.store(true, Ordering::Relaxed);
+                }
+                false
+            }
         }
     }
 }

@@ -65,6 +65,8 @@ bool lavende_player_is_paused(LavendePlayer *ptr);
 
 char *lavende_player_search(LavendePlayer *ptr, const char *query);
 
+char *lavende_load(const char *query);
+
 char *lavende_load_lyrics(const char *encoded_track, bool skip_track_source);
 
 char *lavende_load_lyrics_by_search(const char *title, const char *artist);

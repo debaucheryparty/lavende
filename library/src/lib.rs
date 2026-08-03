@@ -40,31 +40,25 @@ pub fn get_source_manager() -> &'static Mutex<Option<Arc<SourceManager>>> {
         let mut config = AppConfig::default();
         let path = Path::new(&config_file);
 
-        if path.exists() {
-            if let Ok(raw) = fs::read_to_string(path) {
-                if let Ok(json_val) = serde_json::from_str::<serde_json::Value>(&raw) {
-                    if let Some(sources_val) = json_val.get("sources") {
-                        if let Ok(sources_cfg) = serde_json::from_value(sources_val.clone()) {
-                            config.sources = sources_cfg;
-                        }
-                    }
-                    if let Some(rp_val) = json_val.get("route_planner") {
-                        if let Ok(rp_cfg) = serde_json::from_value(rp_val.clone()) {
-                            config.route_planner = rp_cfg;
-                        }
-                    }
-                    if let Some(player_val) = json_val.get("player") {
-                        if let Ok(player_cfg) = serde_json::from_value(player_val.clone()) {
-                            config.player = player_cfg;
-                        }
-                    }
-                }
+        if path.exists()
+            && let Ok(raw) = fs::read_to_string(path)
+            && let Ok(json_val) = serde_json::from_str::<serde_json::Value>(&raw)
+        {
+            if let Some(sources_val) = json_val.get("sources")
+                && let Ok(sources_cfg) = serde_json::from_value(sources_val.clone())
+            {
+                config.sources = sources_cfg;
             }
-        } else {
-            println!(
-                "Warning: {} not found in current directory. Using default source configuration.",
-                config_file
-            );
+            if let Some(rp_val) = json_val.get("route_planner")
+                && let Ok(rp_cfg) = serde_json::from_value(rp_val.clone())
+            {
+                config.route_planner = rp_cfg;
+            }
+            if let Some(player_val) = json_val.get("player")
+                && let Ok(player_cfg) = serde_json::from_value(player_val.clone())
+            {
+                config.player = player_cfg;
+            }
         }
 
         let logging_cfg = config.logging.clone().unwrap_or_default();
@@ -86,20 +80,19 @@ pub fn get_lyrics_manager() -> &'static Mutex<Option<Arc<crate::lyrics::LyricsMa
         let mut config = AppConfig::default();
         let path = Path::new(&config_file);
 
-        if path.exists() {
-            if let Ok(raw) = fs::read_to_string(path) {
-                if let Ok(json_val) = serde_json::from_str::<serde_json::Value>(&raw) {
-                    if let Some(lyrics_val) = json_val.get("lyrics") {
-                        if let Ok(lyrics_cfg) = serde_json::from_value(lyrics_val.clone()) {
-                            config.lyrics = lyrics_cfg;
-                        }
-                    }
-                    if let Some(sources_val) = json_val.get("sources") {
-                        if let Ok(sources_cfg) = serde_json::from_value(sources_val.clone()) {
-                            config.sources = sources_cfg;
-                        }
-                    }
-                }
+        if path.exists()
+            && let Ok(raw) = fs::read_to_string(path)
+            && let Ok(json_val) = serde_json::from_str::<serde_json::Value>(&raw)
+        {
+            if let Some(lyrics_val) = json_val.get("lyrics")
+                && let Ok(lyrics_cfg) = serde_json::from_value(lyrics_val.clone())
+            {
+                config.lyrics = lyrics_cfg;
+            }
+            if let Some(sources_val) = json_val.get("sources")
+                && let Ok(sources_cfg) = serde_json::from_value(sources_val.clone())
+            {
+                config.sources = sources_cfg;
             }
         }
         Mutex::new(Some(Arc::new(crate::lyrics::LyricsManager::new(&config))))

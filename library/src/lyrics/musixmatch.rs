@@ -229,11 +229,11 @@ impl LyricsProvider for MusixmatchProvider {
         let mut lines = Vec::new();
         let mut synced = false;
 
-        if let Some(sub_json_str) = subtitles_body {
-            if let Some(parsed_lines) = self.parse_subtitles(sub_json_str) {
-                lines = parsed_lines;
-                synced = true;
-            }
+        if let Some(sub_json_str) = subtitles_body
+            && let Some(parsed_lines) = self.parse_subtitles(sub_json_str)
+        {
+            lines = parsed_lines;
+            synced = true;
         }
 
         if !synced {

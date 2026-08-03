@@ -490,7 +490,7 @@ pub mod registration {
                 }
             };
         }
-        if config.sources.youtube.as_ref().map_or(true, |c| c.enabled) {
+        if config.sources.youtube.as_ref().is_none_or(|c| c.enabled) {
             tracing::info!("Loaded source: YouTube");
             let yt_client = http_pool.get(None);
             let yt = YouTubeSource::new(config.sources.youtube.clone(), yt_client);

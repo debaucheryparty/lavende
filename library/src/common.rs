@@ -43,6 +43,9 @@ pub mod errors {
         }
     }
 }
+
+pub mod debug;
+
 pub mod types {
     use rand::{Rng, distributions::Alphanumeric};
     use std::{ops::Deref, sync::Arc};
@@ -245,11 +248,12 @@ pub mod http {
                 .user_agent(default_user_agent())
                 .gzip(true)
                 .deflate(true)
-                .timeout(Duration::from_secs(15))
-                .connect_timeout(Duration::from_secs(5))
+                .timeout(Duration::from_secs(20))
+                .connect_timeout(Duration::from_secs(8))
                 .tcp_nodelay(true)
-                .pool_max_idle_per_host(10)
-                .pool_idle_timeout(Duration::from_secs(70));
+                .tcp_keepalive(Duration::from_secs(60))
+                .pool_max_idle_per_host(32)
+                .pool_idle_timeout(Duration::from_secs(90));
             if let Some(url) = proxy.as_ref().and_then(|config| config.url.as_ref()) {
                 match Proxy::all(url) {
                     Ok(mut proxy_obj) => {
@@ -570,7 +574,7 @@ pub mod logger {
                 let state_arc = self.state.clone();
                 std::thread::spawn(move || {
                     if let Err(e) = Self::do_prune(&path, max_lines) {
-                        eprintln!("Failed to prune log file '{}': {}", path, e);
+                        tracing::error!("Failed to prune log file '{}': {}", path, e);
                     }
                     let mut state = state_arc.lock();
                     state.is_pruning = false;
@@ -605,7 +609,7 @@ pub mod logger {
                 let to_delete = log_files.len() - max_files;
                 for path in log_files.iter().take(to_delete) {
                     if let Err(e) = std::fs::remove_file(path) {
-                        eprintln!("Failed to delete old log file '{}': {}", path.display(), e);
+                        tracing::warn!("Failed to delete old log file '{}': {}", path.display(), e);
                     }
                 }
             }
@@ -820,26 +824,6 @@ pub mod logger {
     use tracing_subscriber::{EnvFilter, fmt, prelude::*};
     pub use writer::CircularFileWriter;
     pub(crate) static GLOBAL_FILE_WRITER: OnceLock<CircularFileWriter> = OnceLock::new();
-    #[macro_export]
-    macro_rules! log_print {
-    ($($arg:tt)*) => {{
-        let msg = format!($($arg)*);
-        std::print!("{}", msg);
-        $crate::common::logger::append_to_file_raw(&msg);
-    }};
-}
-    #[macro_export]
-    macro_rules! log_println {
-    () => {{
-        std::println!();
-        $crate::common::logger::append_to_file_raw("\n");
-    }};
-    ($($arg:tt)*) => {{
-        let msg = format!($($arg)*);
-        std::println!("{}", msg);
-        $crate::common::logger::append_to_file_raw(&format!("{}\n", msg));
-    }};
-}
     pub fn append_to_file_raw(msg: &str) {
         if let Some(mut writer) = GLOBAL_FILE_WRITER.get().cloned() {
             use std::io::Write;
@@ -848,6 +832,8 @@ pub mod logger {
         }
     }
     pub fn init(config: &LoggingConfig) {
+        crate::common::debug::init_debug_timer();
+
         let _ = tracing_log::LogTracer::init();
         let log_level = config.level.as_deref().unwrap_or("info");
         let filter_str = match config.filters.as_deref() {

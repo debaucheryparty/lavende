@@ -37,7 +37,7 @@ pub async fn resolve_stream_url(
     let stream_url = json
         .get("url")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| "Missing stream URL in response")?;
+        .ok_or("Missing stream URL in response")?;
     Ok(stream_url.to_string())
 }
 

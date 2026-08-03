@@ -311,14 +311,14 @@ impl SoundCloudSource {
             .collect::<Vec<_>>();
         for chunk in needed.chunks(50) {
             let ids = chunk.join(",");
-            if let Ok(json) = api::load_tracks_batch_api(&self.client, &ids, &client_id).await {
-                if let Some(arr) = json.as_array() {
-                    for item in arr {
-                        if let Ok(track_dto) = serde_json::from_value::<TrackDto>(item.clone()) {
-                            if let Ok(track) = parse_track(&track_dto) {
-                                complete.push(track);
-                            }
-                        }
+            if let Ok(json) = api::load_tracks_batch_api(&self.client, &ids, &client_id).await
+                && let Some(arr) = json.as_array()
+            {
+                for item in arr {
+                    if let Ok(track_dto) = serde_json::from_value::<TrackDto>(item.clone())
+                        && let Ok(track) = parse_track(&track_dto)
+                    {
+                        complete.push(track);
                     }
                 }
             }
@@ -526,12 +526,11 @@ impl SoundCloudSource {
                 } else {
                     Some(item)
                 };
-                if let Some(tj) = track_json {
-                    if let Ok(track_dto) = serde_json::from_value::<TrackDto>(tj.clone()) {
-                        if let Ok(track) = parse_track(&track_dto) {
-                            tracks.push(track);
-                        }
-                    }
+                if let Some(tj) = track_json
+                    && let Ok(track_dto) = serde_json::from_value::<TrackDto>(tj.clone())
+                    && let Ok(track) = parse_track(&track_dto)
+                {
+                    tracks.push(track);
                 }
             }
         }

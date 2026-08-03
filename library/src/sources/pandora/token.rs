@@ -32,10 +32,10 @@ impl PandoraTokenTracker {
     pub async fn get_tokens(&self) -> Option<PandoraTokens> {
         {
             let tokens = self.tokens.read().await;
-            if let Some(t) = &*tokens {
-                if t.expires_at > Instant::now() {
-                    return Some(t.clone());
-                }
+            if let Some(t) = &*tokens
+                && t.expires_at > Instant::now()
+            {
+                return Some(t.clone());
             }
         }
         self.refresh_tokens().await
@@ -51,12 +51,11 @@ impl PandoraTokenTracker {
 
     async fn perform_refresh(&self, force: bool) -> Option<PandoraTokens> {
         let mut tokens_lock = self.tokens.write().await;
-        if !force {
-            if let Some(t) = &*tokens_lock {
-                if t.expires_at > Instant::now() {
-                    return Some(t.clone());
-                }
-            }
+        if !force
+            && let Some(t) = &*tokens_lock
+            && t.expires_at > Instant::now()
+        {
+            return Some(t.clone());
         }
         debug!("Refreshing Pandora tokens...");
         let (csrf_raw, csrf_parsed) = if let Some(csrf) = &self.csrf_override {
@@ -102,14 +101,12 @@ impl PandoraTokenTracker {
         let regex = regex::Regex::new(r"csrftoken=([a-f0-9]{16})").unwrap();
         for cookie in cookies {
             let cookie_str = cookie.to_str().unwrap_or("");
-            if let Some(raw) = cookie_str.split(';').next() {
-                if raw.starts_with("csrftoken=") {
-                    if let Some(captures) = regex.captures(raw) {
-                        if let Some(parsed_match) = captures.get(1) {
-                            return Ok((raw.to_owned(), parsed_match.as_str().to_owned()));
-                        }
-                    }
-                }
+            if let Some(raw) = cookie_str.split(';').next()
+                && raw.starts_with("csrftoken=")
+                && let Some(captures) = regex.captures(raw)
+                && let Some(parsed_match) = captures.get(1)
+            {
+                return Ok((raw.to_owned(), parsed_match.as_str().to_owned()));
             }
         }
         Err("CSRF token not found in cookies".to_owned())
@@ -138,10 +135,10 @@ impl PandoraTokenTracker {
             ));
         }
         let body: Value = resp.json().await.map_err(|e| e.to_string())?;
-        if let Some(error_code) = body.get("errorCode") {
-            if error_code.as_i64() == Some(0) {
-                return Err("Anonymous login returned error code 0".to_owned());
-            }
+        if let Some(error_code) = body.get("errorCode")
+            && error_code.as_i64() == Some(0)
+        {
+            return Err("Anonymous login returned error code 0".to_owned());
         }
         body.get("authToken")
             .and_then(|t| t.as_str())

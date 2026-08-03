@@ -356,9 +356,9 @@ pub mod client {
             .connect_timeout(Duration::from_secs(5))
             .read_timeout(Duration::from_secs(8))
             .tcp_nodelay(true)
-            .tcp_keepalive(Duration::from_secs(25))
-            .pool_max_idle_per_host(64)
-            .pool_idle_timeout(Duration::from_secs(70));
+            .tcp_keepalive(Duration::from_secs(60))
+            .pool_max_idle_per_host(128)
+            .pool_idle_timeout(Duration::from_secs(90));
         if let Some(headers) = headers {
             builder = builder.default_headers(headers);
         }

@@ -73,8 +73,8 @@ impl TidalOAuth {
                 return;
             }
         };
-        crate::log_println!(
-            "\n  ┌────────────────────────────────────────────────────────────┐\n  │                     TIDAL OAUTH LOGIN                      │\n  ├────────────────────────────────────────────────────────────┤\n  │ 1. Visit: {:<48} │\n  │ 2. Log in and authorize the application.                   │\n  └────────────────────────────────────────────────────────────┘\n",
+        tracing::info!(
+            "Tidal OAuth Login:\n  Visit: {}\n  Log in and authorize the application.",
             data.verification_uri_complete
         );
         let oauth = self.clone();
@@ -199,10 +199,10 @@ impl TidalTokenTracker {
     pub async fn get_scraper_token(&self) -> Option<String> {
         {
             let lock = self.token.read().await;
-            if let Some(token) = &*lock {
-                if self.is_valid(token) {
-                    return Some(token.access_token.clone());
-                }
+            if let Some(token) = &*lock
+                && self.is_valid(token)
+            {
+                return Some(token.access_token.clone());
             }
         }
         self.refresh_token().await

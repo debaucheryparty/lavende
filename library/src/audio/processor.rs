@@ -263,6 +263,12 @@ impl AudioProcessor {
                 Err(Error::IoError(e)) if e.kind() == ErrorKind::UnexpectedEof => break,
                 Err(Error::DecodeError(e)) | Err(Error::Unsupported(e)) => {
                     self.recoverable_errors += 1;
+                    if self.recoverable_errors > 1000 {
+                        self.send_error(format!("Too many decode errors: {e}"));
+                        return Err(Error::IoError(std::io::Error::other(
+                            "decode failure threshold exceeded",
+                        )));
+                    }
                     if e.contains("main_data_begin") {
                         continue;
                     }
@@ -366,26 +372,32 @@ impl AudioProcessor {
         let num_frames = samples.len() / frame_channels;
         downmix_buf.clear();
         downmix_buf.reserve(num_frames * MIXER_CHANNELS);
-        for i in 0..num_frames {
-            let frame = &samples[i * frame_channels..(i + 1) * frame_channels];
+
+        let left_count = frame_channels.div_ceil(2) as i32;
+        let right_count = (frame_channels / 2) as i32;
+        let has_right = right_count > 0;
+
+        for chunk in samples.chunks_exact(frame_channels) {
             let mut l = 0i32;
             let mut r = 0i32;
-            for (ch, &sample) in frame.iter().enumerate() {
+
+            for (ch, &sample) in chunk.iter().enumerate() {
+                let s = sample as i32;
                 if ch % 2 == 0 {
-                    l += sample as i32;
+                    l += s;
                 } else {
-                    r += sample as i32;
+                    r += s;
                 }
             }
-            let left_count = frame_channels.div_ceil(2);
-            let right_count = frame_channels / 2;
-            downmix_buf.push((l / left_count as i32) as i16);
-            if right_count > 0 {
-                downmix_buf.push((r / right_count as i32) as i16);
+
+            downmix_buf.push((l / left_count) as i16);
+            if has_right {
+                downmix_buf.push((r / right_count) as i16);
             } else {
-                downmix_buf.push((l / left_count as i32) as i16);
+                downmix_buf.push((l / left_count) as i16);
             }
         }
+
         &downmix_buf[..]
     }
 }

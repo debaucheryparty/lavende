@@ -306,22 +306,20 @@ pub async fn fetch_metadata_isrc(
         }
     }
 
-    if let Ok(json_str) = std::str::from_utf8(&body_bytes) {
-        if let Ok(json) = serde_json::from_str::<Value>(json_str) {
-            if let Some(isrc) = json
-                .get("external_id")
-                .and_then(|ids| ids.as_array())
-                .and_then(|items| {
-                    items
-                        .iter()
-                        .find(|i| i.get("type").and_then(|v| v.as_str()) == Some("isrc"))
-                })
-                .and_then(|i| i.get("id"))
-                .and_then(|v| v.as_str())
-            {
-                return Some(isrc.to_owned());
-            }
-        }
+    if let Ok(json_str) = std::str::from_utf8(&body_bytes)
+        && let Ok(json) = serde_json::from_str::<Value>(json_str)
+        && let Some(isrc) = json
+            .get("external_id")
+            .and_then(|ids| ids.as_array())
+            .and_then(|items| {
+                items
+                    .iter()
+                    .find(|i| i.get("type").and_then(|v| v.as_str()) == Some("isrc"))
+            })
+            .and_then(|i| i.get("id"))
+            .and_then(|v| v.as_str())
+    {
+        return Some(isrc.to_owned());
     }
 
     None
@@ -736,18 +734,13 @@ pub async fn fetch_recommendations(
             .await
             .ok();
 
-        if let Some(resp) = resp {
-            if resp.status().is_success() {
-                if let Ok(json) = resp.json::<Value>().await {
-                    if let Some(playlist_uri) =
-                        json.pointer("/mediaItems/0/uri").and_then(|v| v.as_str())
-                    {
-                        if let Some(id) = playlist_uri.split(':').next_back() {
-                            return Err(id.to_owned());
-                        }
-                    }
-                }
-            }
+        if let Some(resp) = resp
+            && resp.status().is_success()
+            && let Ok(json) = resp.json::<Value>().await
+            && let Some(playlist_uri) = json.pointer("/mediaItems/0/uri").and_then(|v| v.as_str())
+            && let Some(id) = playlist_uri.split(':').next_back()
+        {
+            return Err(id.to_owned());
         }
     }
 
@@ -898,8 +891,8 @@ pub async fn search_full(
                     "isPreview": false
                 });
 
-                if track.info.isrc.is_none() {
-                    if let Ok(res) = timeout(
+                if track.info.isrc.is_none()
+                    && let Ok(res) = timeout(
                         Duration::from_secs(2),
                         fetch_metadata_isrc(
                             client,
@@ -909,11 +902,9 @@ pub async fn search_full(
                         ),
                     )
                     .await
-                    {
-                        if let Some(isrc) = res {
-                            track.info.isrc = Some(isrc);
-                        }
-                    }
+                    && let Some(isrc) = res
+                {
+                    track.info.isrc = Some(isrc);
                 }
                 tracks.push(track);
             }

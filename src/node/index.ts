@@ -156,21 +156,21 @@ export class FilterManager {
     const mix =
       type === "mono"
         ? {
-          leftToLeft: 0.5,
-          leftToRight: 0.5,
-          rightToLeft: 0.5,
-          rightToRight: 0.5,
-        }
+            leftToLeft: 0.5,
+            leftToRight: 0.5,
+            rightToLeft: 0.5,
+            rightToRight: 0.5,
+          }
         : type === "left"
           ? { leftToLeft: 1, leftToRight: 0, rightToLeft: 1, rightToRight: 0 }
           : type === "right"
             ? { leftToLeft: 0, leftToRight: 1, rightToLeft: 0, rightToRight: 1 }
             : {
-              leftToLeft: 1,
-              leftToRight: 0,
-              rightToLeft: 0,
-              rightToRight: 1,
-            };
+                leftToLeft: 1,
+                leftToRight: 0,
+                rightToLeft: 0,
+                rightToRight: 1,
+              };
     this.data.channelMix = mix;
     this.filters.audioOutput = type;
     await this.applyPlayerFilters();
@@ -700,7 +700,10 @@ export async function load(
   return result;
 }
 
-export async function loadLyrics(encodedTrack: string, skipTrackSource: boolean = false): Promise<any> {
+export async function loadLyrics(
+  encodedTrack: string,
+  skipTrackSource: boolean = false,
+): Promise<any> {
   try {
     const res = await native.loadLyrics(encodedTrack, skipTrackSource);
     return JSON.parse(res);
@@ -709,7 +712,10 @@ export async function loadLyrics(encodedTrack: string, skipTrackSource: boolean 
   }
 }
 
-export async function loadLyricsBySearch(title: string, artist: string): Promise<any> {
+export async function loadLyricsBySearch(
+  title: string,
+  artist: string,
+): Promise<any> {
   try {
     const res = await native.loadLyricsBySearch(title, artist);
     return JSON.parse(res);
