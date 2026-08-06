@@ -626,12 +626,7 @@ impl LavendePlayer {
 
     async fn check_crossfade_threshold(&self, pos_ms: i64) {
         let (gapless, crossfade, crossfade_duration) = Self::get_transitions_config();
-        if !gapless && !crossfade {
-            return;
-        }
-        let threshold = if crossfade { crossfade_duration } else { 0 };
-        let threshold = if threshold == 0 { 500 } else { threshold };
-
+        
         let track_len = {
             let q = self.queue.read().await;
             if let Some(t) = &q.current {
@@ -641,7 +636,21 @@ impl LavendePlayer {
             }
         };
 
-        if track_len > 0 && pos_ms >= (track_len - threshold as i64) {
+        if track_len <= 0 {
+            return;
+        }
+
+        let threshold = if gapless || crossfade {
+            if crossfade { 
+                if crossfade_duration == 0 { 500 } else { crossfade_duration }
+            } else { 
+                500 
+            }
+        } else {
+            50
+        };
+
+        if pos_ms >= (track_len - threshold as i64) {
             let mut started = self.transitioning.write().await;
             if !*started {
                 if !self.queue.read().await.is_empty() {
