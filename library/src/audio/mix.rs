@@ -491,6 +491,11 @@ pub mod mixer {
             } else {
                 if !track.finished {
                     track.is_buffering.store(true, Ordering::Relaxed);
+                } else if track.pending.is_empty() {
+                    track
+                        .state
+                        .store(PlaybackState::Stopped as u8, Ordering::SeqCst);
+                    track.is_buffering.store(false, Ordering::Relaxed);
                 }
                 buf.fill(0);
                 false
@@ -593,6 +598,11 @@ pub mod mixer {
             } else {
                 if !track.finished {
                     track.is_buffering.store(true, Ordering::Relaxed);
+                } else if track.pending.is_empty() {
+                    track
+                        .state
+                        .store(PlaybackState::Stopped as u8, Ordering::SeqCst);
+                    track.is_buffering.store(false, Ordering::Relaxed);
                 }
                 false
             }
