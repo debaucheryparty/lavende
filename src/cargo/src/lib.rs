@@ -508,17 +508,20 @@ impl LavendePlayer {
     pub async fn play(&self) -> Result<(), String> {
         let current_track = {
             let mut q = self.queue.write().await;
-            if q.current.is_none() {
-                if let Some(next) = q.next() {
-                    q.current = Some(next);
-                } else {
-                    let _ = self.event_sender.send(LavendeEvent::QueueEnd {
-                        guild_id: self.guild_id.clone(),
-                    });
-                    return Ok(());
+            match q.current.clone() {
+                Some(t) => t,
+                None => {
+                    if let Some(next) = q.next() {
+                        q.current = Some(next.clone());
+                        next
+                    } else {
+                        let _ = self.event_sender.send(LavendeEvent::QueueEnd {
+                            guild_id: self.guild_id.clone(),
+                        });
+                        return Ok(());
+                    }
                 }
             }
-            q.current.clone().unwrap()
         };
 
         let vs = self.voice_state.read().await.clone();
@@ -535,13 +538,26 @@ impl LavendePlayer {
         let current_track_clone = current_track.clone();
         let self_clone = self.clone();
 
+        let session_id = match vs.session_id {
+            Some(s) => s,
+            None => return Ok(()),
+        };
+        let token = match vs.token {
+            Some(t) => t,
+            None => return Ok(()),
+        };
+        let endpoint = match vs.endpoint {
+            Some(e) => e,
+            None => return Ok(()),
+        };
+
         self.native_player
             .play(
                 self.manager_client_id.clone(),
                 vs.voice_channel_id.unwrap_or_default(),
-                vs.session_id.unwrap(),
-                vs.token.unwrap(),
-                vs.endpoint.unwrap(),
+                session_id,
+                token,
+                endpoint,
                 current_track
                     .info
                     .uri
@@ -612,21 +628,21 @@ impl LavendePlayer {
     }
 
     fn get_transitions_config() -> (bool, bool, u64) {
-        let guard = lavende_core::get_source_manager().lock().unwrap();
-        if let Some(sm) = guard.as_ref() {
-            (
-                sm.player_config.transitions.gapless,
-                sm.player_config.transitions.crossfade,
-                sm.player_config.transitions.crossfade_duration_ms,
-            )
-        } else {
-            (false, false, 0)
+        if let Ok(guard) = lavende_core::get_source_manager().lock() {
+            if let Some(sm) = guard.as_ref() {
+                return (
+                    sm.player_config.transitions.gapless,
+                    sm.player_config.transitions.crossfade,
+                    sm.player_config.transitions.crossfade_duration_ms,
+                );
+            }
         }
+        (false, false, 0)
     }
 
     async fn check_crossfade_threshold(&self, pos_ms: i64) {
         let (gapless, crossfade, crossfade_duration) = Self::get_transitions_config();
-        
+
         let track_len = {
             let q = self.queue.read().await;
             if let Some(t) = &q.current {
@@ -641,10 +657,14 @@ impl LavendePlayer {
         }
 
         let threshold = if gapless || crossfade {
-            if crossfade { 
-                if crossfade_duration == 0 { 500 } else { crossfade_duration }
-            } else { 
-                500 
+            if crossfade {
+                if crossfade_duration == 0 {
+                    500
+                } else {
+                    crossfade_duration
+                }
+            } else {
+                500
             }
         } else {
             50

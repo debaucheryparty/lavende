@@ -511,7 +511,7 @@ pub mod registration {
             "SoundCloud",
             soundcloud_proxy,
             SoundCloudSource::new(
-                config.sources.soundcloud.clone().unwrap(),
+                config.sources.soundcloud.clone().unwrap_or_default(),
                 http_pool.get(soundcloud_proxy.clone())
             )
         );
@@ -728,7 +728,7 @@ pub mod registration {
             } else {
                 let proxy = config.sources.deezer.as_ref().and_then(|c| c.proxy.clone());
                 let source = DeezerSource::new(
-                    config.sources.deezer.clone().unwrap(),
+                    config.sources.deezer.clone().unwrap_or_default(),
                     http_pool.get(proxy.clone()),
                 );
                 match source {

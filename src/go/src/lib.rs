@@ -5,7 +5,11 @@ use tokio::runtime::Runtime;
 
 use lavende::{LavendeManager, LavendePlayer};
 
-static RUNTIME: Lazy<Runtime> = Lazy::new(|| Runtime::new().unwrap());
+static RUNTIME: Lazy<Runtime> = Lazy::new(|| {
+    Runtime::new().unwrap_or_else(|_| {
+        std::process::exit(1);
+    })
+});
 
 pub type SendToShardCb = extern "C" fn(*const c_char, *const c_char);
 pub type EventCb = extern "C" fn(*const c_char);
@@ -18,7 +22,9 @@ fn cstr_to_string(c_str: *const c_char) -> String {
 }
 
 fn string_to_cstr(s: String) -> *mut c_char {
-    CString::new(s).unwrap().into_raw()
+    CString::new(s)
+        .unwrap_or_else(|_| CString::new("").unwrap())
+        .into_raw()
 }
 
 #[no_mangle]
@@ -52,9 +58,15 @@ pub extern "C" fn lavende_manager_new(
 ) -> *mut LavendeManager {
     let client_id_str = cstr_to_string(client_id);
     let manager = LavendeManager::new(client_id_str, move |guild_id, payload| {
-        let gid_c = CString::new(guild_id).unwrap();
+        let gid_c = match CString::new(guild_id) {
+            Ok(c) => c,
+            Err(_) => return,
+        };
         let payload_str = serde_json::to_string(&payload).unwrap_or_else(|_| "{}".to_string());
-        let payload_c = CString::new(payload_str).unwrap();
+        let payload_c = match CString::new(payload_str) {
+            Ok(c) => c,
+            Err(_) => return,
+        };
         send_cb(gid_c.as_ptr(), payload_c.as_ptr());
     });
     Box::into_raw(Box::new(manager))

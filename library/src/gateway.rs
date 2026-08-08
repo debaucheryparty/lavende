@@ -388,12 +388,12 @@ pub mod session {
                 Self::default()
             }
             pub fn validate_ack(&self, acked_nonce: u64) -> Option<u64> {
-                let expected = self.last_nonce.load(Ordering::Relaxed);
+                let expected = self.last_nonce.load(Ordering::Acquire);
                 if expected != acked_nonce {
                     warn!("Heartbeat mismatch: sent={expected} got={acked_nonce}");
                     return None;
                 }
-                Some(now_ms().saturating_sub(self.sent_at.load(Ordering::Relaxed)))
+                Some(now_ms().saturating_sub(self.sent_at.load(Ordering::Acquire)))
             }
             pub fn spawn(
                 &self,
@@ -411,15 +411,15 @@ pub mod session {
                     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
                     loop {
                         ticker.tick().await;
-                        let missed = missed_acks.fetch_add(1, Ordering::Relaxed);
+                        let missed = missed_acks.fetch_add(1, Ordering::Release);
                         if missed >= 2 {
                             warn!("Heartbeat timeout: {missed} missed ACKs.");
                             conn_token.cancel();
                             break;
                         }
                         let nonce = now_ms();
-                        last_nonce.store(nonce, Ordering::Relaxed);
-                        sent_at.store(nonce, Ordering::Relaxed);
+                        last_nonce.store(nonce, Ordering::Release);
+                        sent_at.store(nonce, Ordering::Release);
                         let hb = GatewayPayload {
                             op: OpCode::Heartbeat as u8,
                             seq: None,
@@ -1534,7 +1534,9 @@ pub mod session {
                     1,
                 )
             };
-            let _ = ws_tx.send(Message::Text(serde_json::to_string(&handshake).unwrap()));
+            if let Ok(json) = serde_json::to_string(&handshake) {
+                let _ = ws_tx.send(Message::Text(json));
+            }
             let (speaking_tx, mut speaking_rx) = unbounded_channel::<bool>();
             state.set_speaking_tx(speaking_tx);
             let outcome = loop {
