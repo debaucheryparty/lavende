@@ -16,7 +16,7 @@ Lavende is a high-performance native audio processing library designed specifica
 1. [Features](#features)
 2. [Getting Started](#getting-started)
 3. [Documentation](#documentation)
-4. [Demo][#demo]
+4. [Demo](#demo)
 5. [Examples](#examples)
 6. [License](#license)
 
