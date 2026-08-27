@@ -16,8 +16,9 @@ Lavende is a high-performance native audio processing library designed specifica
 1. [Features](#features)
 2. [Getting Started](#getting-started)
 3. [Documentation](#documentation)
-4. [Examples](#examples)
-5. [License](#license)
+4. [Demo][#demo]
+5. [Examples](#examples)
+6. [License](#license)
 
 ### Features
 
@@ -152,6 +153,12 @@ For detailed guides, API documentation, and architecture information, see the `d
 Extensive documentation detailing the Rust architecture, the `LavendeManager`, `Player`, and `Filters` can be found in our official documentation directory:
 
 - [x] [**Read the Lavende Documentation**](./docs/README.md)
+
+##  Demo
+
+Experience Lavende in action through our support server and demo bot:
+- [x] [**Support Server**](https://discord.gg/yGFzxrp5uF)
+- [x] [**Invite the Public Bot**](https://discord.com/oauth2/authorize?client_id=1523731057474801734&permissions=281807873765184&integration_type=0&scope=bot)
 
 ## Examples
 
